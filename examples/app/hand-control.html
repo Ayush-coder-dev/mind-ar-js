@@ -396,6 +396,48 @@
             backdrop-filter: blur(10px);
         }
 
+        
+        .color-picker {
+            position: fixed;
+            top: 50%;
+            left: 16px;
+            transform: translateY(-50%);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .color-swatch {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            transition: all 0.15s ease;
+        }
+        .color-swatch.active {
+            border-color: white;
+            transform: scale(1.2);
+            box-shadow: 0 0 15px currentColor;
+        }
+        .hand-cursor.picking {
+            background: rgba(236, 72, 153, 0.6);
+            width: 36px;
+            height: 36px;
+            box-shadow: 0 0 25px rgba(236, 72, 153, 0.9);
+            border-color: #ec4899;
+        }
+        .ui-value.color {
+            color: #ec4899;
+        }
+        .instructions .pink {
+            color: #ec4899;
+            font-weight: 600;
+        }
+
         .control-btn.active {
             background: linear-gradient(135deg, #a855f7, #7c3aed);
             border-color: transparent;
@@ -422,7 +464,7 @@
 
     <div class="instructions" id="instructions">
         <span class="purple">Thumb+Index</span> → Draw | <span class="red">Thumb+Middle</span> → Erase cubes<br>
-        <span class="green">Fist</span> → Save & rotate 3D | <span class="orange">Thumb+Ring</span> → Delete object
+        <span class="green">Fist</span> → Save & rotate | <span class="orange">Thumb+Ring</span> → Delete | <span class="pink">Thumb+Pinky</span> → Color
     </div>
 
     <div class="hand-cursor" id="handCursor" style="display: none;"></div>
@@ -432,6 +474,17 @@
     <canvas id="handCanvas"></canvas>
     <div id="cubesLayer"></div>
     <div id="savedObject"></div>
+
+    <div class="color-picker" id="colorPicker">
+        <div class="color-swatch active" style="background: #a855f7;" data-color="purple"></div>
+        <div class="color-swatch" style="background: #ef4444;" data-color="red"></div>
+        <div class="color-swatch" style="background: #f97316;" data-color="orange"></div>
+        <div class="color-swatch" style="background: #eab308;" data-color="yellow"></div>
+        <div class="color-swatch" style="background: #22c55e;" data-color="green"></div>
+        <div class="color-swatch" style="background: #06b6d4;" data-color="cyan"></div>
+        <div class="color-swatch" style="background: #3b82f6;" data-color="blue"></div>
+        <div class="color-swatch" style="background: #ec4899;" data-color="pink"></div>
+    </div>
 
     <div class="controls">
         <button class="control-btn" id="clearBtn">Clear</button>
@@ -464,7 +517,11 @@
         const handCtx = handCanvas.getContext('2d');
 
         let currentMode = null;
-        let drawFrames = 0, eraseFrames = 0, fistFrames = 0, deleteFrames = 0;
+        let drawFrames = 0, eraseFrames = 0, fistFrames = 0, deleteFrames = 0, pinkyFrames = 0;
+        let colorIndex = 0;
+        let canChangeColor = true;
+        const colorPalette = ['#a855f7', '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#ec4899'];
+        const colorNames = ['purple', 'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'pink'];
         let handX = 0, handY = 0;
         let placedCubes = new Map();
         let showGrid = true;
@@ -541,6 +598,41 @@
             selectedObjectIndex = -1;
             currentRotX = currentRotY = currentRotZ = 0;
             rotXEl.textContent = rotYEl.textContent = rotZEl.textContent = '0°';
+        }
+
+        function updateCubeColor(color) {
+            // Update CSS custom properties for grid-cube colors
+            const style = document.documentElement.style;
+            style.setProperty('--cube-main', color);
+            
+            // Apply to all existing grid cubes
+            document.querySelectorAll('.grid-cube .front').forEach(el => {
+                el.style.background = 'linear-gradient(135deg, ' + color + ', ' + adjustBrightness(color, -30) + ')';
+            });
+            document.querySelectorAll('.grid-cube .top').forEach(el => {
+                el.style.background = 'linear-gradient(135deg, ' + adjustBrightness(color, 30) + ', ' + color + ')';
+            });
+            document.querySelectorAll('.grid-cube .back, .grid-cube .bottom').forEach(el => {
+                el.style.background = adjustBrightness(color, -50);
+            });
+            document.querySelectorAll('.grid-cube .left, .grid-cube .right').forEach(el => {
+                el.style.background = adjustBrightness(color, -20);
+            });
+        }
+
+        function adjustBrightness(hex, percent) {
+            const num = parseInt(hex.replace('#', ''), 16);
+            const amt = Math.round(2.55 * percent);
+            const R = Math.max(0, Math.min(255, (num >> 16) + amt));
+            const G = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + amt));
+            const B = Math.max(0, Math.min(255, (num & 0x0000FF) + amt));
+            return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+        }
+
+        function updateColorPicker(index) {
+            document.querySelectorAll('.color-swatch').forEach((el, i) => {
+                el.classList.toggle('active', i === index);
+            });
         }
 
         function saveCurrentShape() {
