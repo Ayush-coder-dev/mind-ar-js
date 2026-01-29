@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Voxel Builder Challenge - AR Game</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+            background: #000;
+        }
+
+        #video {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 1;
+        }
+
+        #gridCanvas,
+        #handCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+        }
+
+        #gridCanvas {
+            z-index: 2;
+        }
+
+        #handCanvas {
+            z-index: 5;
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .ui-panel {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 14px 18px;
+            border-radius: 16px;
+            color: white;
+            font-size: 13px;
+            backdrop-filter: blur(10px);
+            min-width: 150px;
+        }
+
+        .ui-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .ui-label {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .ui-value {
+            font-weight: 600;
+            font-family: monospace;
+        }
+
+        .ui-value.good {
+            color: #22c55e;
+        }
+
+        .ui-value.warning {
+            color: #fbbf24;
+        }
+
+        .ui-value.danger {
+            color: #ef4444;
+        }
+
+        .timer-bar {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 6px;
+            overflow: hidden;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .timer-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+            transition: width 0.1s linear;
+        }
+
+        .timer-fill.warning {
+            background: linear-gradient(90deg, #fbbf24, #f59e0b);
+        }
+
+        .timer-fill.danger {
+            background: linear-gradient(90deg, #ef4444, #dc2626);
+        }
+
+        .target-shape {
+            position: fixed;
+            top: 100px;
+            left: 16px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px;
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+
+        .target-label {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .target-grid {
+            display: grid;
+            gap: 2px;
+        }
+
+        .target-cell {
+            width: 16px;
+            height: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+
+        .target-cell.filled {
+            background: linear-gradient(135deg, #a855f7, #9333ea);
+        }
+
+        #cubesLayer {
+            position: fixed;
+            inset: 0;
+            z-index: 4;
+            pointer-events: none;
+            perspective: 800px;
+        }
+
+        .grid-cube {
+            position: absolute;
+            transform-style: preserve-3d;
+            animation: cubeAppear 0.1s ease;
+        }
+
+        @keyframes cubeAppear {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .grid-cube .face {
+            position: absolute;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .grid-cube .front {
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.9), rgba(124, 58, 237, 0.9));
+            transform: translateZ(var(--half-size));
+        }
+
+        .grid-cube .back {
+            background: rgba(80, 40, 160, 0.8);
+            transform: rotateY(180deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .top {
+            background: linear-gradient(135deg, rgba(200, 140, 255, 0.9), rgba(168, 85, 247, 0.9));
+            transform: rotateX(90deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .bottom {
+            background: rgba(60, 30, 120, 0.7);
+            transform: rotateX(-90deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .left,
+        .grid-cube .right {
+            background: rgba(120, 60, 190, 0.85);
+        }
+
+        .grid-cube .left {
+            transform: rotateY(-90deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .right {
+            transform: rotateY(90deg) translateZ(var(--half-size));
+        }
+
+        .hand-cursor {
+            position: fixed;
+            width: 18px;
+            height: 18px;
+            border: 3px solid rgba(168, 85, 247, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 900;
+            transform: translate(-50%, -50%);
+            transition: all 0.08s ease;
+        }
+
+        .hand-cursor.drawing {
+            background: rgba(168, 85, 247, 0.6);
+            width: 28px;
+            height: 28px;
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.9);
+        }
+
+        .hand-cursor.erasing {
+            background: rgba(239, 68, 68, 0.6);
+            width: 28px;
+            height: 28px;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.9);
+            border-color: #ef4444;
+        }
+
+        .instructions {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px 18px;
+            border-radius: 14px;
+            color: white;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+
+        .instructions .purple {
+            color: #a855f7;
+            font-weight: 600;
+        }
+
+        .instructions .red {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        .loading-screen,
+        .game-over,
+        .level-complete {
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .loading-screen {
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+        }
+
+        .loading-screen.hidden,
+        .game-over.hidden,
+        .level-complete.hidden {
+            display: none;
+        }
+
+        .game-over,
+        .level-complete {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #a855f7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .popup-title {
+            font-size: 36px;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .popup-score {
+            font-size: 60px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #a855f7, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 20px;
+        }
+
+        .start-btn {
+            padding: 14px 32px;
+            font-size: 18px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #a855f7, #7c3aed);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .start-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(168, 85, 247, 0.4);
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-btn {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 16px;
+            border-radius: 18px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading Voxel Builder...</div>
+    </div>
+
+    <div class="game-over hidden" id="gameOver">
+        <div class="popup-title">Time's Up!</div>
+        <div class="popup-score" id="finalScore">0</div>
+        <button class="start-btn" onclick="startGame()">Play Again</button>
+    </div>
+
+    <div class="level-complete hidden" id="levelComplete">
+        <div class="popup-title">Level Complete! 🎉</div>
+        <div class="popup-score" id="levelScore">+100</div>
+        <button class="start-btn" onclick="nextLevel()">Next Level</button>
+    </div>
+
+    <a href="./index.html" class="back-btn">← Back</a>
+
+    <div class="ui-panel">
+        <div class="ui-row"><span class="ui-label">Level:</span><span class="ui-value" id="levelValue">1</span></div>
+        <div class="ui-row"><span class="ui-label">Score:</span><span class="ui-value" id="scoreValue">0</span></div>
+        <div class="ui-row"><span class="ui-label">Match:</span><span class="ui-value" id="matchValue">0%</span></div>
+        <div class="ui-row"><span class="ui-label">Mode:</span><span class="ui-value" id="modeValue">-</span></div>
+    </div>
+
+    <div class="timer-bar">
+        <div class="timer-fill" id="timerFill" style="width: 100%;"></div>
+    </div>
+
+    <div class="target-shape" id="targetShape">
+        <div class="target-label">Build This:</div>
+        <div class="target-grid" id="targetGrid"></div>
+    </div>
+
+    <div class="hand-cursor" id="handCursor" style="display: none;"></div>
+
+    <video id="video" autoplay playsinline></video>
+    <canvas id="gridCanvas"></canvas>
+    <canvas id="handCanvas"></canvas>
+    <div id="cubesLayer"></div>
+
+    <div class="controls">
+        <button class="control-btn" id="clearBtn">Clear</button>
+        <button class="start-btn" id="startBtn" onclick="startGame()">Start Game</button>
+    </div>
+
+    <div class="instructions">
+        <span class="purple">Thumb+Index</span> → Draw | <span class="red">Thumb+Middle</span> → Erase | Build the
+        target shape!
+    </div>
+
+    <script>
+        const GRID_SIZE = 20;
+        const BUILD_AREA_SIZE = 8;
+        const TIME_PER_LEVEL = 30;
+        const PINCH_THRESHOLD = 0.055;
+        const PINCH_HOLD_FRAMES = 3;
+
+        // Target shapes for each level
+        const SHAPES = [
+            // Level 1: Simple square
+            [[1, 1], [1, 2], [2, 1], [2, 2]],
+            // Level 2: T shape  
+            [[1, 0], [1, 1], [1, 2], [0, 1], [2, 1]],
+            // Level 3: L shape
+            [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]],
+            // Level 4: Plus
+            [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
+            // Level 5: Heart (simple)
+            [[0, 1], [2, 1], [0, 2], [1, 2], [2, 2], [1, 3]],
+            // Level 6: Arrow
+            [[2, 0], [1, 1], [2, 1], [3, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2]],
+            // Level 7: Star point
+            [[2, 0], [1, 1], [2, 1], [3, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [2, 3], [2, 4]],
+        ];
+
+        const video = document.getElementById('video');
+        const gridCanvas = document.getElementById('gridCanvas');
+        const handCanvas = document.getElementById('handCanvas');
+        const cubesLayer = document.getElementById('cubesLayer');
+        const loadingScreen = document.getElementById('loadingScreen');
+        const gameOverScreen = document.getElementById('gameOver');
+        const levelCompleteScreen = document.getElementById('levelComplete');
+        const targetGrid = document.getElementById('targetGrid');
+        const timerFill = document.getElementById('timerFill');
+        const levelValue = document.getElementById('levelValue');
+        const scoreValue = document.getElementById('scoreValue');
+        const matchValue = document.getElementById('matchValue');
+        const modeValue = document.getElementById('modeValue');
+        const handCursor = document.getElementById('handCursor');
+        const startBtn = document.getElementById('startBtn');
+        const finalScore = document.getElementById('finalScore');
+        const levelScore = document.getElementById('levelScore');
+
+        const gridCtx = gridCanvas.getContext('2d');
+        const handCtx = handCanvas.getContext('2d');
+
+        let currentMode = null;
+        let drawFrames = 0, eraseFrames = 0;
+        let handX = 0, handY = 0;
+        let placedCubes = new Map();
+        let level = 1;
+        let score = 0;
+        let timeLeft = TIME_PER_LEVEL;
+        let gameTimer = null;
+        let gameState = 'idle';
+        let buildAreaX, buildAreaY;
+        let currentShape = [];
+
+        function resizeCanvases() {
+            gridCanvas.width = handCanvas.width = window.innerWidth;
+            gridCanvas.height = handCanvas.height = window.innerHeight;
+            buildAreaX = Math.floor((gridCanvas.width / GRID_SIZE - BUILD_AREA_SIZE) / 2);
+            buildAreaY = Math.floor((gridCanvas.height / GRID_SIZE - BUILD_AREA_SIZE) / 2);
+            drawGrid();
+        }
+        resizeCanvases();
+        window.addEventListener('resize', resizeCanvases);
+
+        function drawGrid() {
+            gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+
+            // Draw build area
+            const x = buildAreaX * GRID_SIZE;
+            const y = buildAreaY * GRID_SIZE;
+            const size = BUILD_AREA_SIZE * GRID_SIZE;
+
+            gridCtx.fillStyle = 'rgba(168, 85, 247, 0.05)';
+            gridCtx.fillRect(x, y, size, size);
+
+            gridCtx.strokeStyle = 'rgba(168, 85, 247, 0.3)';
+            gridCtx.lineWidth = 2;
+            gridCtx.strokeRect(x, y, size, size);
+
+            // Grid lines in build area
+            gridCtx.strokeStyle = 'rgba(168, 85, 247, 0.1)';
+            gridCtx.lineWidth = 1;
+            for (let i = 0; i <= BUILD_AREA_SIZE; i++) {
+                gridCtx.beginPath();
+                gridCtx.moveTo(x + i * GRID_SIZE, y);
+                gridCtx.lineTo(x + i * GRID_SIZE, y + size);
+                gridCtx.stroke();
+                gridCtx.beginPath();
+                gridCtx.moveTo(x, y + i * GRID_SIZE);
+                gridCtx.lineTo(x + size, y + i * GRID_SIZE);
+                gridCtx.stroke();
+            }
+        }
+
+        function setTargetShape(shapeIndex) {
+            currentShape = SHAPES[shapeIndex % SHAPES.length];
+
+            // Find grid dimensions
+            let maxX = 0, maxY = 0;
+            currentShape.forEach(([x, y]) => {
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            });
+
+            targetGrid.style.gridTemplateColumns = `repeat(${maxX + 1}, 1fr)`;
+            targetGrid.innerHTML = '';
+
+            for (let y = 0; y <= maxY; y++) {
+                for (let x = 0; x <= maxX; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'target-cell';
+                    if (currentShape.some(([sx, sy]) => sx === x && sy === y)) {
+                        cell.classList.add('filled');
+                    }
+                    targetGrid.appendChild(cell);
+                }
+            }
+        }
+
+        function createCube(cellX, cellY) {
+            const size = GRID_SIZE - 2, halfSize = size / 2;
+            const cube = document.createElement('div');
+            cube.className = 'grid-cube';
+            cube.style.cssText = `left:${cellX * GRID_SIZE + 1}px;top:${cellY * GRID_SIZE + 1}px;width:${size}px;height:${size}px;--half-size:${halfSize}px`;
+            ['front', 'back', 'top', 'bottom', 'left', 'right'].forEach(f => {
+                const face = document.createElement('div');
+                face.className = `face ${f}`;
+                face.style.cssText = `width:${size}px;height:${size}px`;
+                cube.appendChild(face);
+            });
+            return cube;
+        }
+
+        function placeCube(cellX, cellY) {
+            // Only allow in build area
+            if (cellX < buildAreaX || cellX >= buildAreaX + BUILD_AREA_SIZE ||
+                cellY < buildAreaY || cellY >= buildAreaY + BUILD_AREA_SIZE) return;
+
+            const key = `${cellX},${cellY}`;
+            if (placedCubes.has(key)) return;
+
+            const cube = createCube(cellX, cellY);
+            cubesLayer.appendChild(cube);
+            placedCubes.set(key, { element: cube, x: cellX - buildAreaX, y: cellY - buildAreaY });
+            checkMatch();
+        }
+
+        function removeCube(cellX, cellY) {
+            const key = `${cellX},${cellY}`;
+            const data = placedCubes.get(key);
+            if (!data) return;
+            data.element.remove();
+            placedCubes.delete(key);
+            checkMatch();
+        }
+
+        function checkMatch() {
+            if (gameState !== 'playing') return;
+
+            const playerCubes = new Set();
+            placedCubes.forEach(d => playerCubes.add(`${d.x},${d.y}`));
+
+            const targetCubes = new Set();
+            currentShape.forEach(([x, y]) => targetCubes.add(`${x},${y}`));
+
+            // Calculate match percentage
+            let correct = 0;
+            let total = targetCubes.size;
+            let extra = 0;
+
+            playerCubes.forEach(key => {
+                if (targetCubes.has(key)) correct++;
+                else extra++;
+            });
+
+            const matchPercent = Math.round((correct / total) * 100);
+            matchValue.textContent = matchPercent + '%';
+
+            // Perfect match (no extra cubes, all target cubes placed)
+            if (correct === total && extra === 0) {
+                levelComplete();
+            }
+        }
+
+        function clearBoard() {
+            cubesLayer.innerHTML = '';
+            placedCubes.clear();
+            matchValue.textContent = '0%';
+        }
+
+        function startGame() {
+            level = 1;
+            score = 0;
+            gameState = 'playing';
+            gameOverScreen.classList.add('hidden');
+            levelCompleteScreen.classList.add('hidden');
+            startBtn.style.display = 'none';
+            updateUI();
+            startLevel();
+        }
+
+        function startLevel() {
+            clearBoard();
+            timeLeft = TIME_PER_LEVEL;
+            setTargetShape(level - 1);
+            updateUI();
+
+            if (gameTimer) clearInterval(gameTimer);
+            gameTimer = setInterval(updateTimer, 100);
+        }
+
+        function updateTimer() {
+            timeLeft -= 0.1;
+            const percent = (timeLeft / TIME_PER_LEVEL) * 100;
+            timerFill.style.width = percent + '%';
+
+            if (percent > 50) {
+                timerFill.className = 'timer-fill';
+            } else if (percent > 25) {
+                timerFill.className = 'timer-fill warning';
+            } else {
+                timerFill.className = 'timer-fill danger';
+            }
+
+            if (timeLeft <= 0) {
+                gameOver();
+            }
+        }
+
+        function levelComplete() {
+            clearInterval(gameTimer);
+            const bonus = Math.round(timeLeft * 10);
+            const levelPoints = 100 + bonus;
+            score += levelPoints;
+            gameState = 'complete';
+            levelScore.textContent = '+' + levelPoints;
+            levelCompleteScreen.classList.remove('hidden');
+            updateUI();
+        }
+
+        function nextLevel() {
+            level++;
+            levelCompleteScreen.classList.add('hidden');
+            gameState = 'playing';
+            updateUI();
+            startLevel();
+        }
+
+        function gameOver() {
+            clearInterval(gameTimer);
+            gameState = 'idle';
+            finalScore.textContent = score;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        function updateUI() {
+            levelValue.textContent = level;
+            scoreValue.textContent = score;
+        }
+
+        // ========== HAND TRACKING ==========
+        const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.6 });
+        hands.onResults(onResults);
+
+        function detectIndexPinch(lm) {
+            const dx = lm[4].x - lm[8].x, dy = lm[4].y - lm[8].y;
+            return Math.sqrt(dx * dx + dy * dy) < PINCH_THRESHOLD;
+        }
+
+        function detectMiddlePinch(lm) {
+            const dx = lm[4].x - lm[12].x, dy = lm[4].y - lm[12].y;
+            return Math.sqrt(dx * dx + dy * dy) < PINCH_THRESHOLD;
+        }
+
+        function onResults(results) {
+            handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const lm = results.multiHandLandmarks[0];
+
+                drawConnectors(handCtx, lm, HAND_CONNECTIONS, { color: 'rgba(168, 85, 247, 0.3)', lineWidth: 2 });
+                drawLandmarks(handCtx, lm, { color: '#a855f7', lineWidth: 1, radius: 2 });
+
+                handX = ((1 - lm[4].x) + (1 - lm[8].x)) / 2 * window.innerWidth;
+                handY = (lm[4].y + lm[8].y) / 2 * window.innerHeight;
+                handCursor.style.display = 'block';
+                handCursor.style.left = handX + 'px';
+                handCursor.style.top = handY + 'px';
+
+                const indexPinch = detectIndexPinch(lm);
+                const middlePinch = detectMiddlePinch(lm);
+
+                if (indexPinch && !middlePinch) { drawFrames++; eraseFrames = 0; }
+                else if (middlePinch && !indexPinch) { eraseFrames++; drawFrames = 0; }
+                else { drawFrames = eraseFrames = 0; }
+
+                if (drawFrames >= PINCH_HOLD_FRAMES && gameState === 'playing') {
+                    currentMode = 'draw';
+                    handCursor.className = 'hand-cursor drawing';
+                    modeValue.textContent = 'DRAW';
+                    const cellX = Math.floor(handX / GRID_SIZE);
+                    const cellY = Math.floor(handY / GRID_SIZE);
+                    placeCube(cellX, cellY);
+                } else if (eraseFrames >= PINCH_HOLD_FRAMES && gameState === 'playing') {
+                    currentMode = 'erase';
+                    handCursor.className = 'hand-cursor erasing';
+                    modeValue.textContent = 'ERASE';
+                    const cellX = Math.floor(handX / GRID_SIZE);
+                    const cellY = Math.floor(handY / GRID_SIZE);
+                    removeCube(cellX, cellY);
+                } else {
+                    currentMode = null;
+                    handCursor.className = 'hand-cursor';
+                    modeValue.textContent = '-';
+                }
+            } else {
+                handCursor.style.display = 'none';
+                modeValue.textContent = '-';
+            }
+        }
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            if (gameState === 'playing') clearBoard();
+        });
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 1280, height: 720 } });
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    const camera = new Camera(video, { onFrame: async () => await hands.send({ image: video }), width: 1280, height: 720 });
+                    camera.start();
+                    setTimeout(() => { loadingScreen.classList.add('hidden'); drawGrid(); setTargetShape(0); }, 1200);
+                };
+            } catch (e) { loadingScreen.querySelector('.loading-text').textContent = 'Camera denied'; }
+        }
+
+        startCamera();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Hand Control - AR Voxel Builder</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+            background: #000;
+        }
+
+        #video {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 1;
+        }
+
+        #gridCanvas,
+        #handCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+        }
+
+        #gridCanvas {
+            z-index: 2;
+        }
+
+        #handCanvas {
+            z-index: 5;
+        }
+
+        #cubesLayer {
+            position: fixed;
+            inset: 0;
+            z-index: 4;
+            pointer-events: none;
+            perspective: 800px;
+        }
+
+        #savedObject {
+            position: fixed;
+            z-index: 6;
+            pointer-events: none;
+            transform-style: preserve-3d;
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .ui-panel {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px 16px;
+            border-radius: 14px;
+            color: white;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+            min-width: 180px;
+        }
+
+        .ui-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .ui-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .ui-label {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .ui-value {
+            font-weight: 600;
+            font-family: monospace;
+        }
+
+        .ui-value.draw {
+            color: #a855f7;
+        }
+
+        .ui-value.erase {
+            color: #ef4444;
+        }
+
+        .ui-value.rotate {
+            color: #22c55e;
+        }
+
+        .ui-value.delete {
+            color: #f97316;
+        }
+
+        .instructions {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px 18px;
+            border-radius: 14px;
+            color: white;
+            font-size: 11px;
+            backdrop-filter: blur(10px);
+            text-align: left;
+            max-width: 400px;
+            line-height: 1.6;
+        }
+
+        .instructions .purple {
+            color: #a855f7;
+            font-weight: 600;
+        }
+
+        .instructions .red {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        .instructions .green {
+            color: #22c55e;
+            font-weight: 600;
+        }
+
+        .instructions .orange {
+            color: #f97316;
+            font-weight: 600;
+        }
+
+        .hand-cursor {
+            position: fixed;
+            width: 18px;
+            height: 18px;
+            border: 3px solid rgba(168, 85, 247, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 900;
+            transform: translate(-50%, -50%);
+            transition: all 0.08s ease;
+        }
+
+        .hand-cursor.drawing {
+            background: rgba(168, 85, 247, 0.6);
+            width: 28px;
+            height: 28px;
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.9);
+            border-color: #a855f7;
+        }
+
+        .hand-cursor.erasing {
+            background: rgba(239, 68, 68, 0.6);
+            width: 28px;
+            height: 28px;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.9);
+            border-color: #ef4444;
+        }
+
+        .hand-cursor.rotating {
+            background: rgba(34, 197, 94, 0.6);
+            width: 40px;
+            height: 40px;
+            box-shadow: 0 0 30px rgba(34, 197, 94, 0.9);
+            border-color: #22c55e;
+        }
+
+        .hand-cursor.deleting {
+            background: rgba(249, 115, 22, 0.6);
+            width: 36px;
+            height: 36px;
+            box-shadow: 0 0 25px rgba(249, 115, 22, 0.9);
+            border-color: #f97316;
+        }
+
+        .grid-cube,
+        .saved-cube {
+            position: absolute;
+            transform-style: preserve-3d;
+        }
+
+        .grid-cube {
+            animation: cubeAppear 0.12s ease;
+        }
+
+        @keyframes cubeAppear {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .grid-cube .face,
+        .saved-cube .face {
+            position: absolute;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .grid-cube .front {
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.9), rgba(124, 58, 237, 0.9));
+            transform: translateZ(var(--half-size));
+        }
+
+        .grid-cube .back {
+            background: rgba(80, 40, 160, 0.8);
+            transform: rotateY(180deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .top {
+            background: linear-gradient(135deg, rgba(200, 140, 255, 0.9), rgba(168, 85, 247, 0.9));
+            transform: rotateX(90deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .bottom {
+            background: rgba(60, 30, 120, 0.7);
+            transform: rotateX(-90deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .left,
+        .grid-cube .right {
+            background: rgba(120, 60, 190, 0.85);
+        }
+
+        .grid-cube .left {
+            transform: rotateY(-90deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .right {
+            transform: rotateY(90deg) translateZ(var(--half-size));
+        }
+
+        .saved-cube .front {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.9));
+            transform: translateZ(var(--half-size));
+        }
+
+        .saved-cube .back {
+            background: rgba(15, 100, 50, 0.8);
+            transform: rotateY(180deg) translateZ(var(--half-size));
+        }
+
+        .saved-cube .top {
+            background: linear-gradient(135deg, rgba(74, 222, 128, 0.9), rgba(34, 197, 94, 0.9));
+            transform: rotateX(90deg) translateZ(var(--half-size));
+        }
+
+        .saved-cube .bottom {
+            background: rgba(10, 80, 40, 0.7);
+            transform: rotateX(-90deg) translateZ(var(--half-size));
+        }
+
+        .saved-cube .left,
+        .saved-cube .right {
+            background: rgba(22, 163, 74, 0.85);
+        }
+
+        .saved-cube .left {
+            transform: rotateY(-90deg) translateZ(var(--half-size));
+        }
+
+        .saved-cube .right {
+            transform: rotateY(90deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube.removing {
+            animation: cubeRemove 0.12s ease forwards;
+        }
+
+        @keyframes cubeRemove {
+            to {
+                transform: scale(0);
+                opacity: 0;
+            }
+        }
+
+        .saved-object-container.deleting {
+            animation: objectDelete 0.3s ease forwards;
+        }
+
+        @keyframes objectDelete {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+
+            100% {
+                transform: scale(0);
+                opacity: 0;
+            }
+        }
+
+        .loading-screen {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .loading-screen.hidden {
+            display: none;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #a855f7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-btn {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 16px;
+            border-radius: 18px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-btn.active {
+            background: linear-gradient(135deg, #a855f7, #7c3aed);
+            border-color: transparent;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading...</div>
+    </div>
+
+    <a href="./index.html" class="back-btn">← Back</a>
+
+    <div class="ui-panel">
+        <div class="ui-row"><span class="ui-label">Mode:</span><span class="ui-value" id="modeValue">-</span></div>
+        <div class="ui-row"><span class="ui-label">Cubes:</span><span class="ui-value" id="cubeCount">0</span></div>
+        <div class="ui-row"><span class="ui-label">Objects:</span><span class="ui-value" id="objectCount">0</span></div>
+        <div class="ui-row"><span class="ui-label">Rot X:</span><span class="ui-value" id="rotX">0°</span></div>
+        <div class="ui-row"><span class="ui-label">Rot Y:</span><span class="ui-value" id="rotY">0°</span></div>
+        <div class="ui-row"><span class="ui-label">Rot Z:</span><span class="ui-value" id="rotZ">0°</span></div>
+    </div>
+
+    <div class="instructions" id="instructions">
+        <span class="purple">Thumb+Index</span> → Draw | <span class="red">Thumb+Middle</span> → Erase cubes<br>
+        <span class="green">Fist</span> → Save & rotate 3D | <span class="orange">Thumb+Ring</span> → Delete object
+    </div>
+
+    <div class="hand-cursor" id="handCursor" style="display: none;"></div>
+
+    <video id="video" autoplay playsinline></video>
+    <canvas id="gridCanvas"></canvas>
+    <canvas id="handCanvas"></canvas>
+    <div id="cubesLayer"></div>
+    <div id="savedObject"></div>
+
+    <div class="controls">
+        <button class="control-btn" id="clearBtn">Clear</button>
+        <button class="control-btn active" id="toggleGridBtn">Grid</button>
+    </div>
+
+    <script>
+        const GRID_SIZE = 18;
+        const PINCH_THRESHOLD = 0.055;
+        const PINCH_HOLD_FRAMES = 3;
+        const FIST_HOLD_FRAMES = 4;
+        const ROTATION_SENSITIVITY = 2.5; // Multiplier for 720° rotation
+
+        const video = document.getElementById('video');
+        const gridCanvas = document.getElementById('gridCanvas');
+        const handCanvas = document.getElementById('handCanvas');
+        const cubesLayer = document.getElementById('cubesLayer');
+        const savedObjectEl = document.getElementById('savedObject');
+        const loadingScreen = document.getElementById('loadingScreen');
+        const modeValue = document.getElementById('modeValue');
+        const cubeCount = document.getElementById('cubeCount');
+        const objectCount = document.getElementById('objectCount');
+        const rotXEl = document.getElementById('rotX');
+        const rotYEl = document.getElementById('rotY');
+        const rotZEl = document.getElementById('rotZ');
+        const handCursor = document.getElementById('handCursor');
+        const instructions = document.getElementById('instructions');
+
+        const gridCtx = gridCanvas.getContext('2d');
+        const handCtx = handCanvas.getContext('2d');
+
+        let currentMode = null;
+        let drawFrames = 0, eraseFrames = 0, fistFrames = 0, deleteFrames = 0;
+        let handX = 0, handY = 0;
+        let placedCubes = new Map();
+        let showGrid = true;
+        let lastGridCell = null;
+
+        let savedObjects = [];
+        let isFistActive = false;
+        let fistStartPitch = 0, fistStartYaw = 0, fistStartRoll = 0;
+        let currentRotX = 0, currentRotY = 0, currentRotZ = 0;
+        let selectedObjectIndex = -1;
+
+        function resizeCanvases() {
+            gridCanvas.width = handCanvas.width = window.innerWidth;
+            gridCanvas.height = handCanvas.height = window.innerHeight;
+            drawGrid();
+        }
+        resizeCanvases();
+        window.addEventListener('resize', resizeCanvases);
+
+        function drawGrid() {
+            gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+            if (!showGrid) return;
+            gridCtx.strokeStyle = 'rgba(168, 85, 247, 0.06)';
+            gridCtx.lineWidth = 1;
+            for (let x = 0; x <= gridCanvas.width; x += GRID_SIZE) {
+                gridCtx.beginPath(); gridCtx.moveTo(x, 0); gridCtx.lineTo(x, gridCanvas.height); gridCtx.stroke();
+            }
+            for (let y = 0; y <= gridCanvas.height; y += GRID_SIZE) {
+                gridCtx.beginPath(); gridCtx.moveTo(0, y); gridCtx.lineTo(gridCanvas.width, y); gridCtx.stroke();
+            }
+        }
+
+        function getGridCell(x, y) {
+            return { cellX: Math.floor(x / GRID_SIZE), cellY: Math.floor(y / GRID_SIZE), key: `${Math.floor(x / GRID_SIZE)},${Math.floor(y / GRID_SIZE)}` };
+        }
+
+        function createCube(cellX, cellY, className = 'grid-cube') {
+            const size = GRID_SIZE - 2, halfSize = size / 2;
+            const cube = document.createElement('div');
+            cube.className = className;
+            cube.style.cssText = `left:${cellX * GRID_SIZE + 1}px;top:${cellY * GRID_SIZE + 1}px;width:${size}px;height:${size}px;--half-size:${halfSize}px`;
+            ['front', 'back', 'top', 'bottom', 'left', 'right'].forEach(f => {
+                const face = document.createElement('div');
+                face.className = `face ${f}`;
+                face.style.cssText = `width:${size}px;height:${size}px`;
+                cube.appendChild(face);
+            });
+            return cube;
+        }
+
+        function placeCube(cellX, cellY) {
+            const key = `${cellX},${cellY}`;
+            if (placedCubes.has(key)) return;
+            const cube = createCube(cellX, cellY);
+            cube.dataset.key = key;
+            cubesLayer.appendChild(cube);
+            placedCubes.set(key, { element: cube, x: cellX, y: cellY });
+            cubeCount.textContent = placedCubes.size;
+        }
+
+        function removeCube(cellX, cellY) {
+            const key = `${cellX},${cellY}`, data = placedCubes.get(key);
+            if (!data) return;
+            data.element.classList.add('removing');
+            setTimeout(() => { data.element.remove(); placedCubes.delete(key); cubeCount.textContent = placedCubes.size; }, 120);
+        }
+
+        function clearAll() {
+            cubesLayer.innerHTML = '';
+            placedCubes.clear();
+            savedObjectEl.innerHTML = '';
+            savedObjects = [];
+            cubeCount.textContent = objectCount.textContent = '0';
+            selectedObjectIndex = -1;
+            currentRotX = currentRotY = currentRotZ = 0;
+            rotXEl.textContent = rotYEl.textContent = rotZEl.textContent = '0°';
+        }
+
+        function saveCurrentShape() {
+            if (placedCubes.size === 0) return;
+
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            placedCubes.forEach(d => { minX = Math.min(minX, d.x); minY = Math.min(minY, d.y); maxX = Math.max(maxX, d.x); maxY = Math.max(maxY, d.y); });
+
+            const centerX = (minX + maxX) / 2 * GRID_SIZE + GRID_SIZE / 2;
+            const centerY = (minY + maxY) / 2 * GRID_SIZE + GRID_SIZE / 2;
+
+            const container = document.createElement('div');
+            container.style.cssText = `position:absolute;left:${centerX}px;top:${centerY}px;transform-style:preserve-3d;`;
+
+            placedCubes.forEach(d => {
+                const cube = createCube(0, 0, 'saved-cube');
+                cube.style.left = ((d.x - (minX + maxX) / 2) * GRID_SIZE) + 'px';
+                cube.style.top = ((d.y - (minY + maxY) / 2) * GRID_SIZE) + 'px';
+                container.appendChild(cube);
+            });
+
+            savedObjectEl.appendChild(container);
+            savedObjects.push({ element: container, rotX: 0, rotY: 0, rotZ: 0, centerX, centerY });
+            objectCount.textContent = savedObjects.length;
+
+            cubesLayer.innerHTML = '';
+            placedCubes.clear();
+            cubeCount.textContent = '0';
+            selectedObjectIndex = savedObjects.length - 1;
+            currentRotX = currentRotY = currentRotZ = 0;
+        }
+
+        function deleteNearestObject() {
+            if (savedObjects.length === 0) return;
+
+            // Find nearest object to cursor
+            let nearestIdx = -1;
+            let nearestDist = Infinity;
+
+            savedObjects.forEach((obj, idx) => {
+                const dx = handX - obj.centerX;
+                const dy = handY - obj.centerY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < nearestDist && dist < 150) {
+                    nearestDist = dist;
+                    nearestIdx = idx;
+                }
+            });
+
+            if (nearestIdx >= 0) {
+                const obj = savedObjects[nearestIdx];
+                obj.element.classList.add('deleting');
+                setTimeout(() => {
+                    obj.element.remove();
+                    savedObjects.splice(nearestIdx, 1);
+                    objectCount.textContent = savedObjects.length;
+                    if (selectedObjectIndex >= savedObjects.length) {
+                        selectedObjectIndex = savedObjects.length - 1;
+                    }
+                }, 300);
+            }
+        }
+
+        // ========== HAND TRACKING ==========
+        const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.6 });
+        hands.onResults(onResults);
+
+        function detectIndexPinch(lm) {
+            const dx = lm[4].x - lm[8].x, dy = lm[4].y - lm[8].y;
+            return Math.sqrt(dx * dx + dy * dy) < PINCH_THRESHOLD;
+        }
+
+        function detectMiddlePinch(lm) {
+            const dx = lm[4].x - lm[12].x, dy = lm[4].y - lm[12].y;
+            return Math.sqrt(dx * dx + dy * dy) < PINCH_THRESHOLD;
+        }
+
+        function detectRingPinch(lm) {
+            const dx = lm[4].x - lm[16].x, dy = lm[4].y - lm[16].y;
+            return Math.sqrt(dx * dx + dy * dy) < PINCH_THRESHOLD;
+        }
+
+        function detectFist(lm) {
+            const tips = [8, 12, 16, 20], pips = [6, 10, 14, 18];
+            for (let i = 0; i < 4; i++) if (lm[tips[i]].y < lm[pips[i]].y) return false;
+            return true;
+        }
+
+        // Get hand orientation for 3D rotation
+        function getHandOrientation(lm) {
+            const wrist = lm[0], indexMCP = lm[5], pinkyMCP = lm[17], middleMCP = lm[9];
+
+            // Pitch (up/down) - angle of wrist to middle finger
+            const pitch = Math.atan2(middleMCP.y - wrist.y, middleMCP.z - wrist.z) * (180 / Math.PI);
+
+            // Yaw (left/right) - horizontal angle
+            const yaw = Math.atan2(middleMCP.x - wrist.x, middleMCP.z - wrist.z) * (180 / Math.PI);
+
+            // Roll (twist) - angle across palm
+            const roll = Math.atan2(pinkyMCP.y - indexMCP.y, pinkyMCP.x - indexMCP.x) * (180 / Math.PI);
+
+            return { pitch, yaw, roll };
+        }
+
+        function onResults(results) {
+            handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const lm = results.multiHandLandmarks[0];
+
+                drawConnectors(handCtx, lm, HAND_CONNECTIONS, { color: 'rgba(168, 85, 247, 0.3)', lineWidth: 2 });
+                drawLandmarks(handCtx, lm, { color: '#a855f7', lineWidth: 1, radius: 2 });
+
+                handX = ((1 - lm[4].x) + (1 - lm[8].x)) / 2 * window.innerWidth;
+                handY = (lm[4].y + lm[8].y) / 2 * window.innerHeight;
+                handCursor.style.display = 'block';
+                handCursor.style.left = handX + 'px';
+                handCursor.style.top = handY + 'px';
+
+                const indexPinch = detectIndexPinch(lm);
+                const middlePinch = detectMiddlePinch(lm);
+                const ringPinch = detectRingPinch(lm);
+                const fist = detectFist(lm);
+
+                if (indexPinch && !middlePinch && !ringPinch && !fist) { drawFrames++; eraseFrames = fistFrames = deleteFrames = 0; }
+                else if (middlePinch && !indexPinch && !ringPinch && !fist) { eraseFrames++; drawFrames = fistFrames = deleteFrames = 0; }
+                else if (ringPinch && !indexPinch && !middlePinch && !fist) { deleteFrames++; drawFrames = eraseFrames = fistFrames = 0; }
+                else if (fist) { fistFrames++; drawFrames = eraseFrames = deleteFrames = 0; }
+                else { drawFrames = eraseFrames = fistFrames = deleteFrames = 0; }
+
+                const confirmedDraw = drawFrames >= PINCH_HOLD_FRAMES;
+                const confirmedErase = eraseFrames >= PINCH_HOLD_FRAMES;
+                const confirmedDelete = deleteFrames >= PINCH_HOLD_FRAMES;
+                const confirmedFist = fistFrames >= FIST_HOLD_FRAMES;
+
+                if (confirmedDraw) {
+                    currentMode = 'draw';
+                    handCursor.className = 'hand-cursor drawing';
+                    modeValue.textContent = 'DRAW'; modeValue.className = 'ui-value draw';
+                    isFistActive = false;
+                } else if (confirmedErase) {
+                    currentMode = 'erase';
+                    handCursor.className = 'hand-cursor erasing';
+                    modeValue.textContent = 'ERASE'; modeValue.className = 'ui-value erase';
+                    isFistActive = false;
+                } else if (confirmedDelete) {
+                    if (currentMode !== 'delete') {
+                        deleteNearestObject();
+                    }
+                    currentMode = 'delete';
+                    handCursor.className = 'hand-cursor deleting';
+                    modeValue.textContent = 'DELETE OBJ'; modeValue.className = 'ui-value delete';
+                    isFistActive = false;
+                } else if (confirmedFist) {
+                    const orient = getHandOrientation(lm);
+
+                    if (!isFistActive) {
+                        if (placedCubes.size > 0) saveCurrentShape();
+                        fistStartPitch = orient.pitch;
+                        fistStartYaw = orient.yaw;
+                        fistStartRoll = orient.roll;
+                        isFistActive = true;
+                    }
+
+                    if (selectedObjectIndex >= 0 && savedObjects[selectedObjectIndex]) {
+                        const obj = savedObjects[selectedObjectIndex];
+
+                        // Calculate delta rotations with sensitivity multiplier for 720° range
+                        const deltaX = (orient.pitch - fistStartPitch) * ROTATION_SENSITIVITY;
+                        const deltaY = (orient.yaw - fistStartYaw) * ROTATION_SENSITIVITY;
+                        const deltaZ = (orient.roll - fistStartRoll) * ROTATION_SENSITIVITY;
+
+                        obj.rotX = currentRotX + deltaX;
+                        obj.rotY = currentRotY + deltaY;
+                        obj.rotZ = currentRotZ + deltaZ;
+
+                        obj.element.style.transform = `rotateX(${obj.rotX}deg) rotateY(${obj.rotY}deg) rotateZ(${obj.rotZ}deg)`;
+
+                        rotXEl.textContent = Math.round(obj.rotX) + '°';
+                        rotYEl.textContent = Math.round(obj.rotY) + '°';
+                        rotZEl.textContent = Math.round(obj.rotZ) + '°';
+                    }
+
+                    currentMode = 'rotate';
+                    handCursor.className = 'hand-cursor rotating';
+                    modeValue.textContent = 'ROTATE 3D'; modeValue.className = 'ui-value rotate';
+                } else {
+                    if (isFistActive && selectedObjectIndex >= 0 && savedObjects[selectedObjectIndex]) {
+                        const obj = savedObjects[selectedObjectIndex];
+                        currentRotX = obj.rotX;
+                        currentRotY = obj.rotY;
+                        currentRotZ = obj.rotZ;
+                    }
+                    if (currentMode) lastGridCell = null;
+                    currentMode = null;
+                    handCursor.className = 'hand-cursor';
+                    modeValue.textContent = '-'; modeValue.className = 'ui-value';
+                    isFistActive = false;
+                }
+
+                if (currentMode === 'draw' || currentMode === 'erase') {
+                    const cell = getGridCell(handX, handY);
+                    if (cell.key !== lastGridCell) {
+                        if (currentMode === 'draw') placeCube(cell.cellX, cell.cellY);
+                        else removeCube(cell.cellX, cell.cellY);
+                        lastGridCell = cell.key;
+                    }
+                }
+            } else {
+                handCursor.style.display = 'none';
+                modeValue.textContent = '-'; modeValue.className = 'ui-value';
+                currentMode = null;
+                drawFrames = eraseFrames = fistFrames = deleteFrames = 0;
+                isFistActive = false;
+            }
+        }
+
+        document.getElementById('clearBtn').addEventListener('click', clearAll);
+        document.getElementById('toggleGridBtn').addEventListener('click', function () {
+            showGrid = !showGrid;
+            this.classList.toggle('active', showGrid);
+            drawGrid();
+        });
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 1280, height: 720 } });
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    const camera = new Camera(video, { onFrame: async () => await hands.send({ image: video }), width: 1280, height: 720 });
+                    camera.start();
+                    setTimeout(() => { loadingScreen.classList.add('hidden'); drawGrid(); setTimeout(() => instructions.style.display = 'none', 8000); }, 1200);
+                };
+            } catch (e) { loadingScreen.querySelector('.loading-text').textContent = 'Camera denied'; }
+        }
+
+        startCamera();
+    </script>
+</body>
+
+</html>

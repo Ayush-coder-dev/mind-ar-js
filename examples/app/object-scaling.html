@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Object Scaling - AR Experience</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+            background: #000;
+        }
+
+        #video {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 1;
+        }
+
+        #handCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .ui-panel {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 16px 20px;
+            border-radius: 16px;
+            color: white;
+            font-size: 13px;
+            backdrop-filter: blur(10px);
+            min-width: 180px;
+        }
+
+        .ui-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .ui-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .ui-label {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .ui-value {
+            font-weight: 600;
+            font-family: monospace;
+        }
+
+        .ui-value.scaling {
+            color: #06b6d4;
+        }
+
+        .object-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            perspective: 800px;
+        }
+
+        .ar-object {
+            width: 120px;
+            height: 120px;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: floatObject 4s ease-in-out infinite;
+            transition: transform 0.1s ease;
+        }
+
+        @keyframes floatObject {
+
+            0%,
+            100% {
+                transform: translateY(0) rotateY(0deg);
+            }
+
+            50% {
+                transform: translateY(-15px) rotateY(180deg);
+            }
+        }
+
+        .ar-object .face {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+        }
+
+        .ar-object .front {
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            transform: translateZ(60px);
+        }
+
+        .ar-object .back {
+            background: linear-gradient(135deg, #0891b2, #0e7490);
+            transform: rotateY(180deg) translateZ(60px);
+        }
+
+        .ar-object .right {
+            background: linear-gradient(135deg, #0e7490, #155e75);
+            transform: rotateY(90deg) translateZ(60px);
+        }
+
+        .ar-object .left {
+            background: linear-gradient(135deg, #155e75, #164e63);
+            transform: rotateY(-90deg) translateZ(60px);
+        }
+
+        .ar-object .top {
+            background: linear-gradient(135deg, #22d3ee, #06b6d4);
+            transform: rotateX(90deg) translateZ(60px);
+        }
+
+        .ar-object .bottom {
+            background: linear-gradient(135deg, #164e63, #083344);
+            transform: rotateX(-90deg) translateZ(60px);
+        }
+
+        .scale-indicator {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 24px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .scale-bar {
+            width: 200px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .scale-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #06b6d4, #22d3ee);
+            border-radius: 4px;
+            transition: width 0.1s ease;
+        }
+
+        .scale-text {
+            color: white;
+            font-size: 18px;
+            font-weight: 700;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .instructions {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px 20px;
+            border-radius: 14px;
+            color: white;
+            font-size: 13px;
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+
+        .instructions .highlight {
+            color: #22d3ee;
+            font-weight: 600;
+        }
+
+        .hand-cursor {
+            position: fixed;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(6, 182, 212, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 900;
+            transform: translate(-50%, -50%);
+            transition: all 0.1s ease;
+        }
+
+        .hand-cursor.left-hand {
+            border-color: #f472b6;
+        }
+
+        .hand-cursor.pinching {
+            background: rgba(6, 182, 212, 0.5);
+            width: 28px;
+            height: 28px;
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.8);
+        }
+
+        .hand-cursor.left-hand.pinching {
+            background: rgba(244, 114, 182, 0.5);
+            box-shadow: 0 0 20px rgba(244, 114, 182, 0.8);
+        }
+
+        .connection-line {
+            position: fixed;
+            pointer-events: none;
+            z-index: 850;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .connection-line.active {
+            opacity: 1;
+        }
+
+        .loading-screen {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .loading-screen.hidden {
+            display: none;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #06b6d4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .objects-row {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+            perspective: 800px;
+        }
+
+        .selectable-object {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .selectable-object:hover,
+        .selectable-object.selected {
+            background: rgba(6, 182, 212, 0.3);
+            border-color: #06b6d4;
+            transform: scale(1.1);
+        }
+
+        .main-object {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 100px;
+            z-index: 10;
+            transition: transform 0.1s ease;
+            filter: drop-shadow(0 0 30px rgba(6, 182, 212, 0.5));
+        }
+
+        .scale-ring {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 200px;
+            height: 200px;
+            border: 3px dashed rgba(6, 182, 212, 0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 9;
+            transition: all 0.1s ease;
+        }
+
+        .scale-ring.active {
+            border-color: #22d3ee;
+            box-shadow: 0 0 30px rgba(6, 182, 212, 0.4);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading Object Scaling...</div>
+    </div>
+
+    <a href="./index.html" class="back-btn">← Back</a>
+
+    <div class="ui-panel">
+        <div class="ui-row"><span class="ui-label">Mode:</span><span class="ui-value" id="modeValue">-</span></div>
+        <div class="ui-row"><span class="ui-label">Hands:</span><span class="ui-value" id="handsCount">0</span></div>
+        <div class="ui-row"><span class="ui-label">Scale:</span><span class="ui-value" id="scaleValue">100%</span></div>
+        <div class="ui-row"><span class="ui-label">Distance:</span><span class="ui-value" id="distValue">-</span></div>
+    </div>
+
+    <div class="main-object" id="mainObject">🎁</div>
+    <div class="scale-ring" id="scaleRing"></div>
+
+    <div class="objects-row" style="top: 80px;">
+        <div class="selectable-object selected" data-emoji="🎁">🎁</div>
+        <div class="selectable-object" data-emoji="🏠">🏠</div>
+        <div class="selectable-object" data-emoji="🚀">🚀</div>
+        <div class="selectable-object" data-emoji="🌍">🌍</div>
+        <div class="selectable-object" data-emoji="💎">💎</div>
+    </div>
+
+    <div class="scale-indicator">
+        <div class="scale-bar">
+            <div class="scale-bar-fill" id="scaleBarFill" style="width: 50%;"></div>
+        </div>
+        <div class="scale-text" id="scaleText">100%</div>
+    </div>
+
+    <div class="instructions">
+        <span class="highlight">Two-Hand Pinch</span> → Move hands apart/together to scale object
+    </div>
+
+    <div class="hand-cursor" id="leftCursor" style="display: none;"></div>
+    <div class="hand-cursor" id="rightCursor" style="display: none;"></div>
+
+    <svg class="connection-line" id="connectionLine" width="100%" height="100%">
+        <line id="connectLine" x1="0" y1="0" x2="0" y2="0" stroke="url(#lineGradient)" stroke-width="3"
+            stroke-linecap="round" />
+        <defs>
+            <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#f472b6;stop-opacity:0.8" />
+                <stop offset="50%" style="stop-color:#22d3ee;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:0.8" />
+            </linearGradient>
+        </defs>
+    </svg>
+
+    <video id="video" autoplay playsinline></video>
+    <canvas id="handCanvas"></canvas>
+
+    <script>
+        const PINCH_THRESHOLD = 0.06;
+        const MIN_SCALE = 0.3;
+        const MAX_SCALE = 3.0;
+
+        const video = document.getElementById('video');
+        const handCanvas = document.getElementById('handCanvas');
+        const loadingScreen = document.getElementById('loadingScreen');
+        const mainObject = document.getElementById('mainObject');
+        const scaleRing = document.getElementById('scaleRing');
+        const modeValue = document.getElementById('modeValue');
+        const handsCount = document.getElementById('handsCount');
+        const scaleValueEl = document.getElementById('scaleValue');
+        const distValue = document.getElementById('distValue');
+        const leftCursor = document.getElementById('leftCursor');
+        const rightCursor = document.getElementById('rightCursor');
+        const connectionLine = document.getElementById('connectionLine');
+        const connectLine = document.getElementById('connectLine');
+        const scaleBarFill = document.getElementById('scaleBarFill');
+        const scaleText = document.getElementById('scaleText');
+
+        const handCtx = handCanvas.getContext('2d');
+
+        let currentScale = 1.0;
+        let initialPinchDistance = null;
+        let isScaling = false;
+
+        function resizeCanvas() {
+            handCanvas.width = window.innerWidth;
+            handCanvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Object selection
+        document.querySelectorAll('.selectable-object').forEach(obj => {
+            obj.addEventListener('click', () => {
+                document.querySelectorAll('.selectable-object').forEach(o => o.classList.remove('selected'));
+                obj.classList.add('selected');
+                mainObject.textContent = obj.dataset.emoji;
+            });
+        });
+
+        function updateScaleUI(scale) {
+            const percent = Math.round(scale * 100);
+            scaleValueEl.textContent = percent + '%';
+            scaleText.textContent = percent + '%';
+
+            // Scale bar (0% = MIN_SCALE, 100% = MAX_SCALE)
+            const barPercent = ((scale - MIN_SCALE) / (MAX_SCALE - MIN_SCALE)) * 100;
+            scaleBarFill.style.width = Math.max(0, Math.min(100, barPercent)) + '%';
+
+            // Update object scale
+            mainObject.style.transform = `translate(-50%, -50%) scale(${scale})`;
+
+            // Update ring
+            const ringSize = 200 * scale;
+            scaleRing.style.width = ringSize + 'px';
+            scaleRing.style.height = ringSize + 'px';
+        }
+
+        // ========== HAND TRACKING ==========
+        const hands = new Hands({
+            locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+        });
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+        hands.onResults(onResults);
+
+        function detectPinch(lm) {
+            const dx = lm[4].x - lm[8].x;
+            const dy = lm[4].y - lm[8].y;
+            return Math.sqrt(dx * dx + dy * dy) < PINCH_THRESHOLD;
+        }
+
+        function getPinchPoint(lm) {
+            return {
+                x: (lm[4].x + lm[8].x) / 2,
+                y: (lm[4].y + lm[8].y) / 2
+            };
+        }
+
+        function getDistance(p1, p2) {
+            const dx = p1.x - p2.x;
+            const dy = p1.y - p2.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function onResults(results) {
+            handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+
+            const numHands = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+            handsCount.textContent = numHands;
+
+            // Hide cursors by default
+            leftCursor.style.display = 'none';
+            rightCursor.style.display = 'none';
+            connectionLine.classList.remove('active');
+            scaleRing.classList.remove('active');
+
+            if (numHands >= 2) {
+                const hand1 = results.multiHandLandmarks[0];
+                const hand2 = results.multiHandLandmarks[1];
+                const hand1Label = results.multiHandedness[0].label;
+
+                // Draw hand skeletons
+                results.multiHandLandmarks.forEach(lm => {
+                    drawConnectors(handCtx, lm, HAND_CONNECTIONS, {
+                        color: 'rgba(6, 182, 212, 0.4)',
+                        lineWidth: 2
+                    });
+                    drawLandmarks(handCtx, lm, {
+                        color: '#06b6d4',
+                        lineWidth: 1,
+                        radius: 3
+                    });
+                });
+
+                const pinch1 = detectPinch(hand1);
+                const pinch2 = detectPinch(hand2);
+
+                // Get pinch positions
+                const p1 = getPinchPoint(hand1);
+                const p2 = getPinchPoint(hand2);
+
+                // Convert to screen coordinates (mirrored)
+                const screen1 = {
+                    x: (1 - p1.x) * window.innerWidth,
+                    y: p1.y * window.innerHeight
+                };
+                const screen2 = {
+                    x: (1 - p2.x) * window.innerWidth,
+                    y: p2.y * window.innerHeight
+                };
+
+                // Determine which cursor is left/right
+                const leftPos = screen1.x < screen2.x ? screen1 : screen2;
+                const rightPos = screen1.x < screen2.x ? screen2 : screen1;
+                const leftPinch = screen1.x < screen2.x ? pinch1 : pinch2;
+                const rightPinch = screen1.x < screen2.x ? pinch2 : pinch1;
+
+                // Update cursors
+                leftCursor.style.display = 'block';
+                leftCursor.style.left = leftPos.x + 'px';
+                leftCursor.style.top = leftPos.y + 'px';
+                leftCursor.classList.add('left-hand');
+                leftCursor.classList.toggle('pinching', leftPinch);
+
+                rightCursor.style.display = 'block';
+                rightCursor.style.left = rightPos.x + 'px';
+                rightCursor.style.top = rightPos.y + 'px';
+                rightCursor.classList.remove('left-hand');
+                rightCursor.classList.toggle('pinching', rightPinch);
+
+                // Draw connection line
+                connectionLine.classList.add('active');
+                connectLine.setAttribute('x1', leftPos.x);
+                connectLine.setAttribute('y1', leftPos.y);
+                connectLine.setAttribute('x2', rightPos.x);
+                connectLine.setAttribute('y2', rightPos.y);
+
+                // Both hands pinching = scaling mode
+                if (pinch1 && pinch2) {
+                    const currentDistance = getDistance(p1, p2);
+                    distValue.textContent = (currentDistance * 100).toFixed(0) + 'px';
+
+                    if (!isScaling) {
+                        // Start scaling
+                        isScaling = true;
+                        initialPinchDistance = currentDistance;
+                    } else {
+                        // Continue scaling
+                        const scaleFactor = currentDistance / initialPinchDistance;
+                        let newScale = currentScale * scaleFactor;
+                        newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+                        updateScaleUI(newScale);
+                    }
+
+                    modeValue.textContent = 'SCALING';
+                    modeValue.className = 'ui-value scaling';
+                    scaleRing.classList.add('active');
+                } else {
+                    if (isScaling) {
+                        // Finished scaling, save the current scale
+                        const currentDistance = getDistance(p1, p2);
+                        if (initialPinchDistance) {
+                            const scaleFactor = currentDistance / initialPinchDistance;
+                            currentScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, currentScale * scaleFactor));
+                            updateScaleUI(currentScale);
+                        }
+                    }
+                    isScaling = false;
+                    initialPinchDistance = null;
+                    modeValue.textContent = 'READY';
+                    modeValue.className = 'ui-value';
+                    distValue.textContent = '-';
+                }
+            } else if (numHands === 1) {
+                const lm = results.multiHandLandmarks[0];
+
+                drawConnectors(handCtx, lm, HAND_CONNECTIONS, {
+                    color: 'rgba(6, 182, 212, 0.4)',
+                    lineWidth: 2
+                });
+                drawLandmarks(handCtx, lm, {
+                    color: '#06b6d4',
+                    lineWidth: 1,
+                    radius: 3
+                });
+
+                const p = getPinchPoint(lm);
+                const screenPos = {
+                    x: (1 - p.x) * window.innerWidth,
+                    y: p.y * window.innerHeight
+                };
+
+                rightCursor.style.display = 'block';
+                rightCursor.style.left = screenPos.x + 'px';
+                rightCursor.style.top = screenPos.y + 'px';
+                rightCursor.classList.toggle('pinching', detectPinch(lm));
+
+                modeValue.textContent = '1 HAND';
+                modeValue.className = 'ui-value';
+
+                isScaling = false;
+                initialPinchDistance = null;
+                distValue.textContent = '-';
+            } else {
+                modeValue.textContent = '-';
+                modeValue.className = 'ui-value';
+                isScaling = false;
+                initialPinchDistance = null;
+                distValue.textContent = '-';
+            }
+        }
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: 1280, height: 720 }
+                });
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    const camera = new Camera(video, {
+                        onFrame: async () => await hands.send({ image: video }),
+                        width: 1280,
+                        height: 720
+                    });
+                    camera.start();
+                    setTimeout(() => {
+                        loadingScreen.classList.add('hidden');
+                    }, 1200);
+                };
+            } catch (e) {
+                loadingScreen.querySelector('.loading-text').textContent = 'Camera access denied';
+            }
+        }
+
+        startCamera();
+        updateScaleUI(currentScale);
+    </script>
+</body>
+
+</html>
