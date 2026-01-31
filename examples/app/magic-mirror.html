@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Magic Mirror AR</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: #000;
+            overflow: hidden;
+        }
+
+        #video {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 1;
+        }
+
+        #outputCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 2;
+            pointer-events: none;
+            /* Filters handled by JS or CSS classes */
+            transition: filter 0.3s ease;
+        }
+
+        /* UI */
+        .ui-layer {
+            position: fixed;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+
+        .back-btn {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 30px;
+            text-decoration: none;
+            color: white;
+            font-weight: 700;
+            pointer-events: auto;
+        }
+
+        .status-box {
+            align-self: center;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            padding: 10px 30px;
+            border-radius: 20px;
+            color: white;
+            font-size: 18px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .expression-icon {
+            font-size: 40px;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .guide {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            text-align: center;
+        }
+
+        .guide-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 15px;
+            width: 80px;
+        }
+
+        .guide-emoji {
+            font-size: 24px;
+        }
+
+        .guide-text {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 4px;
+        }
+
+        .guide-item.active {
+            background: rgba(255, 255, 255, 0.3);
+            border: 1px solid white;
+            transform: scale(1.1);
+            transition: all 0.2s;
+        }
+
+        /* Filter Classes */
+        .filter-sepia {
+            filter: sepia(0.8);
+        }
+
+        .filter-bw {
+            filter: grayscale(1);
+        }
+
+        .filter-invert {
+            filter: invert(1);
+        }
+
+        .filter-none {
+            filter: none;
+        }
+    </style>
+</head>
+
+<body>
+    <video id="video" playsinline></video>
+    <canvas id="outputCanvas"></canvas>
+
+    <div class="ui-layer">
+        <a href="index.html" class="back-btn">← Exit</a>
+
+        <div class="status-box">
+            <span class="expression-icon" id="mainIcon">😐</span>
+            <span id="statusText">Neutral</span>
+        </div>
+
+        <div class="guide">
+            <div class="guide-item" id="guide-smile">
+                <div class="guide-emoji">😊</div>
+                <div class="guide-text">Smile</div>
+            </div>
+            <div class="guide-item" id="guide-open">
+                <div class="guide-emoji">😮</div>
+                <div class="guide-text">Open</div>
+            </div>
+            <div class="guide-item" id="guide-blink">
+                <div class="guide-emoji">😉</div>
+                <div class="guide-text">Blink</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('outputCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusText = document.getElementById('statusText');
+        const mainIcon = document.getElementById('mainIcon');
+
+        // Resize
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Particle System
+        class Particle {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 'heart' or 'fire'
+                this.active = true;
+
+                if (type === 'heart') {
+                    this.vx = (Math.random() - 0.5) * 4;
+                    this.vy = -Math.random() * 5 - 2; // Upward
+                    this.size = Math.random() * 20 + 10;
+                    this.life = 1.0;
+                    this.color = `hsl(${Math.random() * 20 + 340}, 100%, 60%)`; // Pinks
+                } else if (type === 'fire') {
+                    this.vx = (Math.random() - 0.5) * 6; // Wide spread
+                    this.vy = Math.random() * 10 + 5; // Downward (breath)
+                    this.size = Math.random() * 30 + 10;
+                    this.life = 1.0;
+                    this.color = `hsl(${Math.random() * 40 + 10}, 100%, 50%)`; // Orange/Red
+                }
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= 0.02;
+                if (this.life <= 0) this.active = false;
+
+                if (this.type === 'fire') {
+                    this.size *= 0.95; // Shrink
+                }
+            }
+
+            draw(ctx) {
+                ctx.globalAlpha = this.life;
+                if (this.type === 'heart') {
+                    ctx.font = `${this.size}px Arial`;
+                    ctx.fillStyle = this.color;
+                    ctx.fillText('❤', this.x, this.y);
+                } else if (this.type === 'fire') {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = 'orange';
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        let particles = [];
+        let filterMode = 'none'; // none, sepia, bw
+        let lastFilterChange = 0;
+
+        // Face Logic
+        function onResults(results) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear particles
+
+            // Apply filter CSS to video? No, canvas is overlay. 
+            // We can apply filter to VIDEO element.
+            const vidEl = document.getElementById('video');
+            vidEl.className = `filter-${filterMode}`;
+
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const face = results.multiFaceLandmarks[0];
+
+                // Helper: Get point coords
+                const getP = (idx) => {
+                    return { x: (1 - face[idx].x) * canvas.width, y: face[idx].y * canvas.height };
+                    // Note: x is mirrored
+                };
+
+                // --- Heuristics ---
+
+                // 1. Mouth Open
+                // Upper Lip Bottom: 13, Lower Lip Top: 14
+                const p13 = getP(13);
+                const p14 = getP(14);
+                const mouthOpenDist = Math.abs(p13.y - p14.y);
+
+                // Normalization: Face Height (Top 10 - Bottom 152)
+                const faceHeight = Math.abs(getP(10).y - getP(152).y);
+                const openRatio = mouthOpenDist / faceHeight;
+
+                // 2. Smile
+                // Corners: 61 (Left), 291 (Right)
+                const p61 = getP(61);
+                const p291 = getP(291);
+                const mouthWidth = Math.sqrt(Math.pow(p61.x - p291.x, 2) + Math.pow(p61.y - p291.y, 2));
+                const smileRatio = mouthWidth / faceHeight; // Wider mouth = smile
+
+                // Also check corner y relative to center?
+                // Simple width ratio is okay usually.
+
+                // 3. Blink (Eye Aspect Ratio roughly)
+                // Left Eye Top/Bot: 159, 145
+                const leftEyeH = Math.abs(getP(159).y - getP(145).y);
+                const rightEyeH = Math.abs(getP(386).y - getP(374).y);
+                const blinkRatio = (leftEyeH + rightEyeH) / 2 / faceHeight;
+
+                // Thresholds
+                const IS_OPEN = openRatio > 0.15; // Tuned
+                const IS_SMILE = smileRatio > 0.35 && !IS_OPEN; // Smile is wide but closed usually
+                const IS_BLINK = blinkRatio < 0.015;
+
+                // --- Logic & Effects ---
+
+                document.querySelectorAll('.guide-item').forEach(el => el.classList.remove('active'));
+
+                if (IS_OPEN) {
+                    statusText.textContent = "Mouth Open!";
+                    mainIcon.textContent = "🔥";
+                    document.getElementById('guide-open').classList.add('active');
+
+                    // Spawn Fire
+                    const mouthCenter = getP(13);
+                    for (let i = 0; i < 3; i++) {
+                        limitParticles();
+                        particles.push(new Particle(mouthCenter.x, mouthCenter.y + 20, 'fire'));
+                    }
+
+                } else if (IS_SMILE) {
+                    statusText.textContent = "Smiling!";
+                    mainIcon.textContent = "🥰";
+                    document.getElementById('guide-smile').classList.add('active');
+
+                    // Spawn Hearts from Cheeks (approx 234 and 454)
+                    const leftCheek = getP(234);
+                    const rightCheek = getP(454);
+
+                    if (Math.random() > 0.5) particles.push(new Particle(leftCheek.x, leftCheek.y, 'heart'));
+                    if (Math.random() > 0.5) particles.push(new Particle(rightCheek.x, rightCheek.y, 'heart'));
+
+                } else if (IS_BLINK) {
+                    statusText.textContent = "Wink/Blink!";
+                    mainIcon.textContent = "😉";
+                    document.getElementById('guide-blink').classList.add('active');
+
+                    // Toggle Filter
+                    const now = Date.now();
+                    if (now - lastFilterChange > 1000) {
+                        cycleFilter();
+                        lastFilterChange = now;
+                    }
+                } else {
+                    statusText.textContent = "Neutral";
+                    mainIcon.textContent = "😐";
+                }
+
+                // Draw Face Mesh (Optional, maybe subtle)
+                drawConnectors(ctx, face, FACEMESH_TESSELATION, { color: '#C0C0C070', lineWidth: 1 });
+            }
+
+            // Update Particles
+            particles.forEach(p => {
+                p.update();
+                p.draw(ctx);
+            });
+            particles = particles.filter(p => p.active);
+        }
+
+        function limitParticles() {
+            if (particles.length > 200) particles.shift();
+        }
+
+        const filters = ['none', 'sepia', 'bw', 'invert'];
+        function cycleFilter() {
+            let idx = filters.indexOf(filterMode);
+            idx = (idx + 1) % filters.length;
+            filterMode = filters[idx];
+            console.log("Filter: " + filterMode);
+            statusText.textContent = "Filter: " + filterMode.toUpperCase();
+        }
+
+        const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        faceMesh.onResults(onResults);
+
+        const camera = new Camera(video, {
+            onFrame: async () => { await faceMesh.send({ image: video }); },
+            width: 1280, height: 720
+        });
+        camera.start();
+
+    </script>
+</body>
+
+</html>

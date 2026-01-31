@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>AR Hand Shooter</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background: #000;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #video {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 1;
+        }
+
+        #gameCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .ui-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            padding: 20px 30px;
+        }
+
+        .score-box {
+            text-align: right;
+        }
+
+        .hud-label {
+            font-size: 14px;
+            color: #ec4899;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .hud-value {
+            font-size: 32px;
+            color: #fff;
+            text-shadow: 0 0 10px #ec4899;
+        }
+
+        .health-bar-container {
+            width: 300px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .health-fill {
+            height: 100%;
+            width: 100%;
+            background: #22c55e;
+            transition: width 0.2s, background 0.2s;
+        }
+
+        .crosshair {
+            position: fixed;
+            width: 40px;
+            height: 40px;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            z-index: 100;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+
+        .crosshair::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background: #ec4899;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+        }
+
+        .crosshair.locked {
+            border-color: #ec4899;
+            box-shadow: 0 0 15px #ec4899;
+            transform: translate(-50%, -50%) scale(0.8);
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+            pointer-events: auto;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);
+            border: none;
+            padding: 15px 50px;
+            color: white;
+            font-size: 24px;
+            font-family: 'Orbitron', sans-serif;
+            text-transform: uppercase;
+            clip-path: polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        .back-link {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            font-size: 14px;
+            pointer-events: auto;
+            z-index: 300;
+        }
+    </style>
+</head>
+
+<body>
+    <video id="video" playsinline></video>
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="crosshair" id="crosshair"></div>
+
+    <a href="index.html" class="back-link">← EXIT MISSION</a>
+
+    <div class="ui-layer">
+        <div class="hud-top">
+            <div>
+                <div class="hud-label">Integrity</div>
+                <div class="health-bar-container">
+                    <div class="health-fill" id="healthFill"></div>
+                </div>
+            </div>
+            <div class="score-box">
+                <div class="hud-label">Score</div>
+                <div class="hud-value" id="scoreVal">0000</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Projector -->
+    <div class="overlay" id="startScreen">
+        <h1 style="font-size:48px; color:#ec4899; margin-bottom:10px; text-shadow:0 0 20px #ec4899;">HAND SHOOTER</h1>
+        <div style="text-align:center; max-width:500px; line-height:1.6; color:#ddd; margin-bottom:40px;">
+            <p style="margin-bottom:15px;">DEFEND THE PERIMETER</p>
+            <p>👆 <b>POINT</b> to Aim</p>
+            <p>👌 <b>PINCH</b> to Fire</p>
+        </div>
+        <button class="btn" onclick="game.start()">ENGAGE</button>
+    </div>
+
+    <div class="overlay" id="gameOverScreen" style="display:none">
+        <h1 style="font-size:48px; color:#ef4444;">MISSION FAILED</h1>
+        <p style="margin-bottom:20px; font-size:20px;">FINAL SCORE: <span id="finalScore">0</span></p>
+        <button class="btn" onclick="game.restart()">RETRY</button>
+    </div>
+
+    <script>
+        // Game Constants
+        const WIDTH = window.innerWidth;
+        const HEIGHT = window.innerHeight;
+        const CANVAS = document.getElementById('gameCanvas');
+        const CTX = CANVAS.getContext('2d');
+
+        // Setup scaling
+        CANVAS.width = WIDTH;
+        CANVAS.height = HEIGHT;
+
+        class Vector {
+            constructor(x, y, z = 0) { this.x = x; this.y = y; this.z = z; }
+        }
+
+        class Enemy {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                // Spawn far away (z=1000) at random x,y
+                this.z = 1000 + Math.random() * 500;
+                this.x = (Math.random() - 0.5) * WIDTH * 2; // Spread wider
+                this.y = (Math.random() - 0.5) * HEIGHT * 2;
+                this.speed = 5 + Math.random() * 5;
+                this.radius = 20 + Math.random() * 20;
+                this.active = true;
+                this.color = `hsl(${Math.random() * 60 + 300}, 100%, 50%)`; // Pink/Purple range
+            }
+
+            update(playerX, playerY) {
+                if (!this.active) return;
+
+                // Move towards screen (z=0)
+                this.z -= this.speed;
+
+                // Also slight homing towards center to ensure they are visible
+                this.x -= (this.x - WIDTH / 2) * 0.005;
+                this.y -= (this.y - HEIGHT / 2) * 0.005;
+
+                if (this.z <= 0) {
+                    game.takeDamage(10);
+                    this.active = false;
+                }
+            }
+
+            draw(ctx) {
+                if (!this.active) return;
+
+                // Perspective projection
+                const scale = 500 / (500 + this.z); // Simple perspective
+                const screenX = WIDTH / 2 + (this.x - WIDTH / 2) * scale;
+                const screenY = HEIGHT / 2 + (this.y - HEIGHT / 2) * scale;
+                const size = this.radius * scale * 2;
+
+                ctx.save();
+                ctx.translate(screenX, screenY);
+
+                // Glow
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+
+                // Core
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Ring
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, size, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.restore();
+
+                // Hitbox for collision (store projected coordinates)
+                this.screenX = screenX;
+                this.screenY = screenY;
+                this.screenSize = size;
+            }
+        }
+
+        class Projectile {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.active = true;
+                this.radius = 5;
+                this.history = []; // Trail
+            }
+
+            update() {
+                // Shots are instant raycasts essentially in this 2D plane logic on top of 3D, 
+                // but let's make them travel 'into' the scene for visual flair
+
+                // Actually, an arcade shooter usually raycasts instantly.
+                // Let's do visual raycast pulses.
+                this.active = false; // Instant hit scan logic handled by game
+            }
+
+            draw(ctx) {
+                // Draw muzzle flash at hand position
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.fillStyle = '#facc15';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#facc15';
+                ctx.beginPath();
+                ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 10;
+                this.vy = (Math.random() - 0.5) * 10;
+                this.life = 1.0;
+                this.color = color;
+                this.active = true;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= 0.05;
+                if (this.life <= 0) this.active = false;
+            }
+            draw(ctx) {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        class Game {
+            constructor() {
+                this.score = 0;
+                this.health = 100;
+                this.isActive = false;
+                this.enemies = [];
+                this.particles = [];
+                this.spawnTimer = 0;
+                this.difficulty = 1;
+
+                this.crosshair = { x: WIDTH / 2, y: HEIGHT / 2 };
+                this.isFiring = false;
+                this.lastFireTime = 0;
+            }
+
+            start() {
+                document.getElementById('startScreen').style.display = 'none';
+                document.getElementById('gameOverScreen').style.display = 'none';
+                this.score = 0;
+                this.health = 100;
+                this.enemies = [];
+                this.particles = [];
+                this.isActive = true;
+                this.updateUI();
+
+                // Pre-populate some enemies
+                for (let i = 0; i < 5; i++) this.spawnEnemy();
+
+                this.loop();
+            }
+
+            restart() {
+                this.start();
+            }
+
+            spawnEnemy() {
+                this.enemies.push(new Enemy());
+            }
+
+            takeDamage(amt) {
+                this.health -= amt;
+                if (this.health <= 0) {
+                    this.health = 0;
+                    this.gameOver();
+                }
+                this.updateUI();
+            }
+
+            gameOver() {
+                this.isActive = false;
+                document.getElementById('finalScore').textContent = this.score;
+                document.getElementById('gameOverScreen').style.display = 'flex';
+            }
+
+            updateUI() {
+                document.getElementById('scoreVal').textContent = this.score.toString().padStart(4, '0');
+                const fill = document.getElementById('healthFill');
+                fill.style.width = this.health + '%';
+                fill.style.backgroundColor = this.health > 40 ? '#22c55e' : '#ef4444';
+            }
+
+            fire() {
+                const now = Date.now();
+                if (now - this.lastFireTime < 150) return; // Fire rate limit
+                this.lastFireTime = now;
+
+                // Visuals
+                const flash = new Particle(this.crosshair.x, this.crosshair.y, '#facc15');
+                flash.life = 0.5; // Short muzzle flash
+                this.particles.push(flash);
+
+                // Hit Scan
+                let hit = false;
+                // Sort enemies by z (closest first) to hit what's in front
+                this.enemies.sort((a, b) => a.z - b.z);
+
+                for (let e of this.enemies) {
+                    if (!e.active) continue;
+
+                    // Simple circle collision
+                    const dx = this.crosshair.x - e.screenX;
+                    const dy = this.crosshair.y - e.screenY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < e.screenSize) {
+                        // Explosion
+                        for (let i = 0; i < 10; i++) {
+                            this.particles.push(new Particle(e.screenX, e.screenY, e.color));
+                        }
+                        e.active = false; // Destroy
+                        this.score += 100;
+                        hit = true;
+                        break; // Only hit one
+                    }
+                }
+
+                if (!hit) {
+                    // Miss cue?
+                }
+
+                this.updateUI();
+            }
+
+            loop() {
+                if (!this.isActive) return;
+
+                CTX.clearRect(0, 0, WIDTH, HEIGHT);
+
+                // Spawning
+                this.spawnTimer++;
+                if (this.spawnTimer > 60 - (this.difficulty * 2)) {
+                    this.spawnEnemy();
+                    this.spawnTimer = 0;
+                }
+
+                // Update & Draw Enemies
+                this.enemies.forEach(e => {
+                    e.update();
+                    e.draw(CTX);
+                });
+
+                // Cleanup dead enemies
+                this.enemies = this.enemies.filter(e => e.active);
+
+                // Particles
+                this.particles.forEach(p => {
+                    p.update();
+                    p.draw(CTX);
+                });
+                this.particles = this.particles.filter(p => p.active);
+
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        const game = new Game();
+
+        // Hand Tracking Logic
+        const video = document.getElementById('video');
+        const crosshairEl = document.getElementById('crosshair');
+
+        function onResults(results) {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const lm = results.multiHandLandmarks[0];
+
+                // 1. Aim: Index Tip (8)
+                const x = (1 - lm[8].x) * WIDTH;
+                const y = lm[8].y * HEIGHT;
+
+                game.crosshair.x = x;
+                game.crosshair.y = y;
+
+                crosshairEl.style.display = 'block';
+                crosshairEl.style.left = x + 'px';
+                crosshairEl.style.top = y + 'px';
+
+                // 2. Fire: Pinch (Index 8 + Thumb 4)
+                const dx = lm[4].x - lm[8].x;
+                const dy = lm[4].y - lm[8].y;
+                const dist = Math.sqrt(dx * dx + dy * dy); // Normalized coord distance
+
+                if (dist < 0.05) { // Pinching
+                    crosshairEl.classList.add('locked');
+                    if (game.isActive) game.fire();
+                } else {
+                    crosshairEl.classList.remove('locked');
+                }
+
+            } else {
+                crosshairEl.style.display = 'none';
+            }
+        }
+
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+        hands.onResults(onResults);
+
+        const camera = new Camera(video, {
+            onFrame: async () => { await hands.send({ image: video }); },
+            width: 1280, height: 720
+        });
+        camera.start();
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            CANVAS.width = window.innerWidth;
+            CANVAS.height = window.innerHeight;
+        });
+    </script>
+</body>
+
+</html>

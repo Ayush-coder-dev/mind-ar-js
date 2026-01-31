@@ -4,8 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Voxel Builder Challenge - AR Game</title>
+    <title>Voxel Builder Challenge</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
@@ -25,9 +24,9 @@
 
         body {
             font-family: 'Inter', sans-serif;
+            background: #111;
             overflow: hidden;
             touch-action: none;
-            background: #000;
         }
 
         #video {
@@ -57,125 +56,6 @@
             z-index: 5;
         }
 
-        .back-btn {
-            position: fixed;
-            top: 16px;
-            left: 16px;
-            z-index: 1000;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 10px 16px;
-            border-radius: 25px;
-            font-size: 14px;
-            font-weight: 500;
-            text-decoration: none;
-            backdrop-filter: blur(10px);
-        }
-
-        .ui-panel {
-            position: fixed;
-            top: 16px;
-            right: 16px;
-            z-index: 1000;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 14px 18px;
-            border-radius: 16px;
-            color: white;
-            font-size: 13px;
-            backdrop-filter: blur(10px);
-            min-width: 150px;
-        }
-
-        .ui-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-        }
-
-        .ui-label {
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        .ui-value {
-            font-weight: 600;
-            font-family: monospace;
-        }
-
-        .ui-value.good {
-            color: #22c55e;
-        }
-
-        .ui-value.warning {
-            color: #fbbf24;
-        }
-
-        .ui-value.danger {
-            color: #ef4444;
-        }
-
-        .timer-bar {
-            position: fixed;
-            top: 70px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 300px;
-            height: 12px;
-            background: rgba(0, 0, 0, 0.6);
-            border-radius: 6px;
-            overflow: hidden;
-            z-index: 1000;
-            backdrop-filter: blur(10px);
-        }
-
-        .timer-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #22c55e, #16a34a);
-            transition: width 0.1s linear;
-        }
-
-        .timer-fill.warning {
-            background: linear-gradient(90deg, #fbbf24, #f59e0b);
-        }
-
-        .timer-fill.danger {
-            background: linear-gradient(90deg, #ef4444, #dc2626);
-        }
-
-        .target-shape {
-            position: fixed;
-            top: 100px;
-            left: 16px;
-            z-index: 1000;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 12px;
-            border-radius: 16px;
-            backdrop-filter: blur(10px);
-        }
-
-        .target-label {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
-        }
-
-        .target-grid {
-            display: grid;
-            gap: 2px;
-        }
-
-        .target-cell {
-            width: 16px;
-            height: 16px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 2px;
-        }
-
-        .target-cell.filled {
-            background: linear-gradient(135deg, #a855f7, #9333ea);
-        }
-
         #cubesLayer {
             position: fixed;
             inset: 0;
@@ -184,612 +64,589 @@
             perspective: 800px;
         }
 
-        .grid-cube {
-            position: absolute;
-            transform-style: preserve-3d;
-            animation: cubeAppear 0.1s ease;
-        }
-
-        @keyframes cubeAppear {
-            0% {
-                transform: scale(0);
-                opacity: 0;
-            }
-
-            100% {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-
-        .grid-cube .face {
-            position: absolute;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .grid-cube .front {
-            background: linear-gradient(135deg, rgba(168, 85, 247, 0.9), rgba(124, 58, 237, 0.9));
-            transform: translateZ(var(--half-size));
-        }
-
-        .grid-cube .back {
-            background: rgba(80, 40, 160, 0.8);
-            transform: rotateY(180deg) translateZ(var(--half-size));
-        }
-
-        .grid-cube .top {
-            background: linear-gradient(135deg, rgba(200, 140, 255, 0.9), rgba(168, 85, 247, 0.9));
-            transform: rotateX(90deg) translateZ(var(--half-size));
-        }
-
-        .grid-cube .bottom {
-            background: rgba(60, 30, 120, 0.7);
-            transform: rotateX(-90deg) translateZ(var(--half-size));
-        }
-
-        .grid-cube .left,
-        .grid-cube .right {
-            background: rgba(120, 60, 190, 0.85);
-        }
-
-        .grid-cube .left {
-            transform: rotateY(-90deg) translateZ(var(--half-size));
-        }
-
-        .grid-cube .right {
-            transform: rotateY(90deg) translateZ(var(--half-size));
-        }
-
-        .hand-cursor {
+        /* UI Overlays */
+        .ui-top {
             position: fixed;
-            width: 18px;
-            height: 18px;
-            border: 3px solid rgba(168, 85, 247, 0.8);
-            border-radius: 50%;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 0 24px;
             pointer-events: none;
-            z-index: 900;
-            transform: translate(-50%, -50%);
-            transition: all 0.08s ease;
         }
 
-        .hand-cursor.drawing {
-            background: rgba(168, 85, 247, 0.6);
-            width: 28px;
-            height: 28px;
-            box-shadow: 0 0 20px rgba(168, 85, 247, 0.9);
+        .back-btn {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: white;
+            text-decoration: none;
+            backdrop-filter: blur(5px);
+            font-weight: 600;
+            pointer-events: auto;
         }
 
-        .hand-cursor.erasing {
-            background: rgba(239, 68, 68, 0.6);
-            width: 28px;
-            height: 28px;
-            box-shadow: 0 0 20px rgba(239, 68, 68, 0.9);
-            border-color: #ef4444;
+        .level-info {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 15px 25px;
+            border-radius: 20px;
+            text-align: center;
+            backdrop-filter: blur(5px);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .instructions {
+        .level-title {
+            font-size: 14px;
+            text-transform: uppercase;
+            opacity: 0.8;
+            letter-spacing: 1px;
+        }
+
+        .curr-level {
+            font-size: 24px;
+            font-weight: 800;
+            color: #fbbf24;
+        }
+
+        .timer-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 15px 25px;
+            border-radius: 20px;
+            text-align: center;
+            backdrop-filter: blur(5px);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .timer-val {
+            font-size: 28px;
+            font-weight: 700;
+            font-family: monospace;
+        }
+
+        .timer-val.urgent {
+            color: #ef4444;
+            animation: pulse 0.5s infinite;
+        }
+
+        .progress-bar {
             position: fixed;
             bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(0, 0, 0, 0.85);
-            padding: 12px 18px;
-            border-radius: 14px;
-            color: white;
-            font-size: 12px;
-            backdrop-filter: blur(10px);
-            text-align: center;
+            width: 300px;
+            background: rgba(255, 255, 255, 0.1);
+            height: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+            z-index: 100;
         }
 
-        .instructions .purple {
-            color: #a855f7;
-            font-weight: 600;
+        .progress-fill {
+            height: 100%;
+            background: #22c55e;
+            width: 0%;
+            transition: width 0.3s ease;
         }
 
-        .instructions .red {
-            color: #ef4444;
-            font-weight: 600;
+        .hand-cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 900;
+            transform: translate(-50%, -50%);
+            transition: all 0.1s ease;
         }
 
-        .loading-screen,
-        .game-over,
-        .level-complete {
+        .hand-cursor.drawing {
+            background: #fbbf24;
+            border-color: #fbbf24;
+            box-shadow: 0 0 15px #fbbf24;
+        }
+
+        /* Cubes */
+        .grid-cube,
+        .ghost-cube {
+            position: absolute;
+            transform-style: preserve-3d;
+        }
+
+        .grid-cube {
+            animation: cubeAppear 0.2s ease;
+        }
+
+        .grid-cube .face {
+            position: absolute;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            opacity: 0.9;
+        }
+
+        /* User Cube Colors (Gold/Construction) */
+        .grid-cube .front {
+            background: #d97706;
+            transform: translateZ(var(--half-size));
+        }
+
+        .grid-cube .back {
+            background: #b45309;
+            transform: rotateY(180deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .top {
+            background: #fbbf24;
+            transform: rotateX(90deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .bottom {
+            background: #92400e;
+            transform: rotateX(-90deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .left {
+            background: #d97706;
+            transform: rotateY(-90deg) translateZ(var(--half-size));
+        }
+
+        .grid-cube .right {
+            background: #d97706;
+            transform: rotateY(90deg) translateZ(var(--half-size));
+        }
+
+        /* Ghost Cube (Blueprint) */
+        .ghost-cube .face {
+            position: absolute;
+            border: 2px dashed rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.1);
+        }
+
+        .ghost-cube .front {
+            transform: translateZ(var(--half-size));
+        }
+
+        .ghost-cube .back {
+            transform: rotateY(180deg) translateZ(var(--half-size));
+        }
+
+        .ghost-cube .top {
+            transform: rotateX(90deg) translateZ(var(--half-size));
+        }
+
+        .ghost-cube .bottom {
+            transform: rotateX(-90deg) translateZ(var(--half-size));
+        }
+
+        .ghost-cube .left {
+            transform: rotateY(-90deg) translateZ(var(--half-size));
+        }
+
+        .ghost-cube .right {
+            transform: rotateY(90deg) translateZ(var(--half-size));
+        }
+
+        .ghost-cube.filled .face {
+            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.2);
+        }
+
+        @keyframes cubeAppear {
+            from {
+                transform: scale(0);
+            }
+
+            to {
+                transform: scale(1);
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        /* Overlays */
+        .overlay {
             position: fixed;
             inset: 0;
-            z-index: 2000;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 200;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            color: white;
-        }
-
-        .loading-screen {
-            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-        }
-
-        .loading-screen.hidden,
-        .game-over.hidden,
-        .level-complete.hidden {
-            display: none;
-        }
-
-        .game-over,
-        .level-complete {
-            background: rgba(0, 0, 0, 0.9);
-        }
-
-        .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid rgba(255, 255, 255, 0.2);
-            border-top-color: #a855f7;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 16px;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        .popup-title {
-            font-size: 36px;
-            font-weight: 800;
-            margin-bottom: 10px;
-        }
-
-        .popup-score {
-            font-size: 60px;
-            font-weight: 800;
-            background: linear-gradient(135deg, #a855f7, #7c3aed);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 20px;
-        }
-
-        .start-btn {
-            padding: 14px 32px;
-            font-size: 18px;
-            font-weight: 600;
-            background: linear-gradient(135deg, #a855f7, #7c3aed);
-            color: white;
-            border: none;
-            border-radius: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .start-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 10px 30px rgba(168, 85, 247, 0.4);
-        }
-
-        .controls {
-            position: fixed;
-            bottom: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            display: flex;
-            gap: 8px;
-        }
-
-        .control-btn {
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 10px 16px;
-            border-radius: 18px;
-            font-size: 12px;
-            font-weight: 500;
-            cursor: pointer;
             backdrop-filter: blur(10px);
+            pointer-events: auto;
+        }
+
+        .btn {
+            background: #fbbf24;
+            color: black;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: 700;
+            border-radius: 30px;
+            cursor: pointer;
+            text-transform: uppercase;
+            margin-top: 20px;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
         }
     </style>
 </head>
 
 <body>
-    <div class="loading-screen" id="loadingScreen">
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Loading Voxel Builder...</div>
-    </div>
-
-    <div class="game-over hidden" id="gameOver">
-        <div class="popup-title">Time's Up!</div>
-        <div class="popup-score" id="finalScore">0</div>
-        <button class="start-btn" onclick="startGame()">Play Again</button>
-    </div>
-
-    <div class="level-complete hidden" id="levelComplete">
-        <div class="popup-title">Level Complete! 🎉</div>
-        <div class="popup-score" id="levelScore">+100</div>
-        <button class="start-btn" onclick="nextLevel()">Next Level</button>
-    </div>
-
-    <a href="./index.html" class="back-btn">← Back</a>
-
-    <div class="ui-panel">
-        <div class="ui-row"><span class="ui-label">Level:</span><span class="ui-value" id="levelValue">1</span></div>
-        <div class="ui-row"><span class="ui-label">Score:</span><span class="ui-value" id="scoreValue">0</span></div>
-        <div class="ui-row"><span class="ui-label">Match:</span><span class="ui-value" id="matchValue">0%</span></div>
-        <div class="ui-row"><span class="ui-label">Mode:</span><span class="ui-value" id="modeValue">-</span></div>
-    </div>
-
-    <div class="timer-bar">
-        <div class="timer-fill" id="timerFill" style="width: 100%;"></div>
-    </div>
-
-    <div class="target-shape" id="targetShape">
-        <div class="target-label">Build This:</div>
-        <div class="target-grid" id="targetGrid"></div>
-    </div>
-
-    <div class="hand-cursor" id="handCursor" style="display: none;"></div>
-
-    <video id="video" autoplay playsinline></video>
+    <video id="video" playsinline></video>
     <canvas id="gridCanvas"></canvas>
     <canvas id="handCanvas"></canvas>
     <div id="cubesLayer"></div>
+    <div id="handCursor" class="hand-cursor" style="display:none"></div>
 
-    <div class="controls">
-        <button class="control-btn" id="clearBtn">Clear</button>
-        <button class="start-btn" id="startBtn" onclick="startGame()">Start Game</button>
+    <div class="ui-top">
+        <a href="index.html" class="back-btn">← Exit</a>
+
+        <div class="level-info">
+            <div class="level-title">Level</div>
+            <div class="curr-level" id="levelDisp">1</div>
+        </div>
+
+        <div class="timer-box">
+            <div class="level-title">Time</div>
+            <div class="timer-val" id="timerDisp">60</div>
+        </div>
     </div>
 
-    <div class="instructions">
-        <span class="purple">Thumb+Index</span> → Draw | <span class="red">Thumb+Middle</span> → Erase | Build the
-        target shape!
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <div class="overlay" id="startScreen">
+        <h1 style="color:#fbbf24; font-size:48px; margin-bottom:10px;">Voxel Builder</h1>
+        <p style="color:white; text-align:center; max-width:400px; line-height:1.5;">
+            You are the builder!<br>
+            Fill the <b>GHOST BLOCKS</b> with your own blocks.<br>
+            Use <b>Thumb+Index Pinch</b> to place a block.
+        </p>
+        <button class="btn" onclick="startGame()">Start Building</button>
+    </div>
+
+    <div class="overlay" id="winScreen" style="display:none">
+        <h1 style="color:#22c55e; font-size:48px;">Level Complete!</h1>
+        <p style="color:white;">Great job!</p>
+        <button class="btn" onclick="nextLevel()">Next Level</button>
+    </div>
+
+    <div class="overlay" id="loseScreen" style="display:none">
+        <h1 style="color:#ef4444; font-size:48px;">Time's Up!</h1>
+        <p style="color:white;">Incomplete structure.</p>
+        <button class="btn" onclick="restartLevel()">Try Again</button>
     </div>
 
     <script>
-        const GRID_SIZE = 20;
-        const BUILD_AREA_SIZE = 8;
-        const TIME_PER_LEVEL = 30;
-        const PINCH_THRESHOLD = 0.055;
+        // Constants & Config
+        const GRID_SIZE = 40;
+        const PINCH_THRESHOLD = 0.05;
         const PINCH_HOLD_FRAMES = 3;
 
-        // Target shapes for each level
-        const SHAPES = [
-            // Level 1: Simple square
-            [[1, 1], [1, 2], [2, 1], [2, 2]],
-            // Level 2: T shape  
-            [[1, 0], [1, 1], [1, 2], [0, 1], [2, 1]],
-            // Level 3: L shape
-            [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]],
-            // Level 4: Plus
-            [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
-            // Level 5: Heart (simple)
-            [[0, 1], [2, 1], [0, 2], [1, 2], [2, 2], [1, 3]],
-            // Level 6: Arrow
-            [[2, 0], [1, 1], [2, 1], [3, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2]],
-            // Level 7: Star point
-            [[2, 0], [1, 1], [2, 1], [3, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [2, 3], [2, 4]],
-        ];
-
+        // Elements
         const video = document.getElementById('video');
         const gridCanvas = document.getElementById('gridCanvas');
         const handCanvas = document.getElementById('handCanvas');
         const cubesLayer = document.getElementById('cubesLayer');
-        const loadingScreen = document.getElementById('loadingScreen');
-        const gameOverScreen = document.getElementById('gameOver');
-        const levelCompleteScreen = document.getElementById('levelComplete');
-        const targetGrid = document.getElementById('targetGrid');
-        const timerFill = document.getElementById('timerFill');
-        const levelValue = document.getElementById('levelValue');
-        const scoreValue = document.getElementById('scoreValue');
-        const matchValue = document.getElementById('matchValue');
-        const modeValue = document.getElementById('modeValue');
         const handCursor = document.getElementById('handCursor');
-        const startBtn = document.getElementById('startBtn');
-        const finalScore = document.getElementById('finalScore');
-        const levelScore = document.getElementById('levelScore');
+        const levelDisp = document.getElementById('levelDisp');
+        const timerDisp = document.getElementById('timerDisp');
+        const progressFill = document.getElementById('progressFill');
+        const startScreen = document.getElementById('startScreen');
+        const winScreen = document.getElementById('winScreen');
+        const loseScreen = document.getElementById('loseScreen');
 
         const gridCtx = gridCanvas.getContext('2d');
         const handCtx = handCanvas.getContext('2d');
 
-        let currentMode = null;
-        let drawFrames = 0, eraseFrames = 0;
-        let handX = 0, handY = 0;
-        let placedCubes = new Map();
-        let level = 1;
-        let score = 0;
-        let timeLeft = TIME_PER_LEVEL;
-        let gameTimer = null;
-        let gameState = 'idle';
-        let buildAreaX, buildAreaY;
-        let currentShape = [];
+        // State
+        let currentLevel = 1;
+        let timeRemaining = 60;
+        let timerInterval = null;
+        let isGameActive = false;
 
-        function resizeCanvases() {
+        let handX = 0, handY = 0;
+        let drawFrames = 0;
+        let lastGridCell = null;
+
+        let placedCubes = new Set(); // Stores "x,y" keys
+        let ghostCubes = []; // Array of {x, y, element}
+
+        // Levels Data (Blueprint coordinates relative to center)
+        const levels = [
+            [ // Level 1: 2x2 Square
+                { x: 0, y: 0 }, { x: 1, y: 0 },
+                { x: 0, y: 1 }, { x: 1, y: 1 }
+            ],
+            [ // Level 2: Line
+                { x: -2, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }
+            ],
+            [ // Level 3: Cross
+                { x: 0, y: 0 },
+                { x: -1, y: 0 }, { x: 1, y: 0 },
+                { x: 0, y: -1 }, { x: 0, y: 1 }
+            ],
+            [ // Level 4: Frame
+                { x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 },
+                { x: -1, y: 0 }, { x: 1, y: 0 },
+                { x: -1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 }
+            ]
+        ];
+
+        // Setup
+        function resize() {
             gridCanvas.width = handCanvas.width = window.innerWidth;
             gridCanvas.height = handCanvas.height = window.innerHeight;
-            buildAreaX = Math.floor((gridCanvas.width / GRID_SIZE - BUILD_AREA_SIZE) / 2);
-            buildAreaY = Math.floor((gridCanvas.height / GRID_SIZE - BUILD_AREA_SIZE) / 2);
-            drawGrid();
+            renderGhostCubes(); // Re-center on resize
         }
-        resizeCanvases();
-        window.addEventListener('resize', resizeCanvases);
+        window.addEventListener('resize', resize);
+        resize();
 
-        function drawGrid() {
-            gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-
-            // Draw build area
-            const x = buildAreaX * GRID_SIZE;
-            const y = buildAreaY * GRID_SIZE;
-            const size = BUILD_AREA_SIZE * GRID_SIZE;
-
-            gridCtx.fillStyle = 'rgba(168, 85, 247, 0.05)';
-            gridCtx.fillRect(x, y, size, size);
-
-            gridCtx.strokeStyle = 'rgba(168, 85, 247, 0.3)';
-            gridCtx.lineWidth = 2;
-            gridCtx.strokeRect(x, y, size, size);
-
-            // Grid lines in build area
-            gridCtx.strokeStyle = 'rgba(168, 85, 247, 0.1)';
-            gridCtx.lineWidth = 1;
-            for (let i = 0; i <= BUILD_AREA_SIZE; i++) {
-                gridCtx.beginPath();
-                gridCtx.moveTo(x + i * GRID_SIZE, y);
-                gridCtx.lineTo(x + i * GRID_SIZE, y + size);
-                gridCtx.stroke();
-                gridCtx.beginPath();
-                gridCtx.moveTo(x, y + i * GRID_SIZE);
-                gridCtx.lineTo(x + size, y + i * GRID_SIZE);
-                gridCtx.stroke();
-            }
+        // Game Logic
+        function startGame() {
+            startScreen.style.display = 'none';
+            currentLevel = 1;
+            loadLevel(currentLevel);
         }
 
-        function setTargetShape(shapeIndex) {
-            currentShape = SHAPES[shapeIndex % SHAPES.length];
+        function nextLevel() {
+            winScreen.style.display = 'none';
+            currentLevel++;
+            if (currentLevel > levels.length) currentLevel = 1; // Loop or end
+            loadLevel(currentLevel);
+        }
 
-            // Find grid dimensions
-            let maxX = 0, maxY = 0;
-            currentShape.forEach(([x, y]) => {
-                maxX = Math.max(maxX, x);
-                maxY = Math.max(maxY, y);
+        function restartLevel() {
+            loseScreen.style.display = 'none';
+            loadLevel(currentLevel);
+        }
+
+        function loadLevel(lvl) {
+            levelDisp.textContent = lvl;
+            timeRemaining = 30 + (lvl * 10); // More time for harder levels
+            timerDisp.textContent = timeRemaining;
+            timerDisp.className = 'timer-val';
+
+            // Clear board
+            cubesLayer.innerHTML = '';
+            placedCubes.clear();
+            ghostCubes = [];
+
+            // Build Blueprints
+            const centerX = Math.floor(window.innerWidth / GRID_SIZE / 2);
+            const centerY = Math.floor(window.innerHeight / GRID_SIZE / 2);
+
+            const layout = levels[lvl - 1];
+            layout.forEach(pos => {
+                // Ghost coords
+                const gx = centerX + pos.x;
+                const gy = centerY + pos.y;
+                createCube(gx, gy, 'ghost-cube');
+                ghostCubes.push({ x: gx, y: gy, filled: false });
             });
 
-            targetGrid.style.gridTemplateColumns = `repeat(${maxX + 1}, 1fr)`;
-            targetGrid.innerHTML = '';
+            isGameActive = true;
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 1000);
+            updateProgress();
+        }
 
-            for (let y = 0; y <= maxY; y++) {
-                for (let x = 0; x <= maxX; x++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'target-cell';
-                    if (currentShape.some(([sx, sy]) => sx === x && sy === y)) {
-                        cell.classList.add('filled');
-                    }
-                    targetGrid.appendChild(cell);
-                }
+        function updateTimer() {
+            if (!isGameActive) return;
+            timeRemaining--;
+            timerDisp.textContent = timeRemaining;
+            if (timeRemaining <= 10) timerDisp.classList.add('urgent');
+
+            if (timeRemaining <= 0) {
+                isGameActive = false;
+                clearInterval(timerInterval);
+                loseScreen.style.display = 'flex';
             }
         }
 
-        function createCube(cellX, cellY) {
-            const size = GRID_SIZE - 2, halfSize = size / 2;
+        function createCube(cellX, cellY, type = 'grid-cube') {
+            const size = GRID_SIZE - 2;
+            const halfSize = size / 2;
             const cube = document.createElement('div');
-            cube.className = 'grid-cube';
+            cube.className = type;
             cube.style.cssText = `left:${cellX * GRID_SIZE + 1}px;top:${cellY * GRID_SIZE + 1}px;width:${size}px;height:${size}px;--half-size:${halfSize}px`;
+
             ['front', 'back', 'top', 'bottom', 'left', 'right'].forEach(f => {
                 const face = document.createElement('div');
                 face.className = `face ${f}`;
                 face.style.cssText = `width:${size}px;height:${size}px`;
                 cube.appendChild(face);
             });
+
+            cubesLayer.appendChild(cube);
+
+            // Keep reference if ghost
+            if (type === 'ghost-cube') {
+                const idx = ghostCubes.length; // Will be pushed after return in loadLevel loop, but we need element ref... 
+                // Wait, logic in loadLevel handles push. We just return here?
+                // Actually better to store element reference in ghostCubes
+                // We'll fix ghostCubes structure in loadLevel
+                cube.dataset.gx = cellX;
+                cube.dataset.gy = cellY;
+            }
             return cube;
         }
 
-        function placeCube(cellX, cellY) {
-            // Only allow in build area
-            if (cellX < buildAreaX || cellX >= buildAreaX + BUILD_AREA_SIZE ||
-                cellY < buildAreaY || cellY >= buildAreaY + BUILD_AREA_SIZE) return;
+        // Need to override renderGhostCubes to actually store elements
+        // Let's refactor createCube to be simpler helper
 
-            const key = `${cellX},${cellY}`;
-            if (placedCubes.has(key)) return;
-
-            const cube = createCube(cellX, cellY);
-            cubesLayer.appendChild(cube);
-            placedCubes.set(key, { element: cube, x: cellX - buildAreaX, y: cellY - buildAreaY });
-            checkMatch();
+        function renderGhostCubes() {
+            // Only if game active? No, on resize.
+            // Actually, resizing breaks absolute positions. 
+            // Ideally we clear and rebuild, but state preservation is tricky.
+            // For now, assume fixed window or restart on resize for simplicity
         }
 
-        function removeCube(cellX, cellY) {
-            const key = `${cellX},${cellY}`;
-            const data = placedCubes.get(key);
-            if (!data) return;
-            data.element.remove();
-            placedCubes.delete(key);
-            checkMatch();
+        function checkClick(cx, cy) {
+            const key = `${cx},${cy}`;
+            if (placedCubes.has(key)) return; // Already there
+
+            // Create User Cube
+            createCube(cx, cy, 'grid-cube');
+            placedCubes.add(key);
+
+            checkWinCondition();
         }
 
-        function checkMatch() {
-            if (gameState !== 'playing') return;
+        function checkWinCondition() {
+            // Check if every ghost cube has a matching user cube
+            let filledCount = 0;
+            const total = ghostCubes.length;
 
-            const playerCubes = new Set();
-            placedCubes.forEach(d => playerCubes.add(`${d.x},${d.y}`));
-
-            const targetCubes = new Set();
-            currentShape.forEach(([x, y]) => targetCubes.add(`${x},${y}`));
-
-            // Calculate match percentage
-            let correct = 0;
-            let total = targetCubes.size;
-            let extra = 0;
-
-            playerCubes.forEach(key => {
-                if (targetCubes.has(key)) correct++;
-                else extra++;
+            // Visual Update
+            const ghosts = document.querySelectorAll('.ghost-cube');
+            ghosts.forEach(g => {
+                const gx = parseInt(g.dataset.gx);
+                const gy = parseInt(g.dataset.gy);
+                const key = `${gx},${gy}`;
+                if (placedCubes.has(key)) {
+                    g.classList.add('filled');
+                    filledCount++;
+                } else {
+                    g.classList.remove('filled');
+                }
             });
 
-            const matchPercent = Math.round((correct / total) * 100);
-            matchValue.textContent = matchPercent + '%';
+            // Progress Bar
+            const pct = (filledCount / total) * 100;
+            progressFill.style.width = pct + '%';
 
-            // Perfect match (no extra cubes, all target cubes placed)
-            if (correct === total && extra === 0) {
-                levelComplete();
+            if (filledCount === total) {
+                // WIN!
+                isGameActive = false;
+                clearInterval(timerInterval);
+                setTimeout(() => {
+                    winScreen.style.display = 'flex';
+                }, 500);
             }
         }
 
-        function clearBoard() {
-            cubesLayer.innerHTML = '';
-            placedCubes.clear();
-            matchValue.textContent = '0%';
+        function getGridCell(x, y) {
+            return {
+                cellX: Math.floor(x / GRID_SIZE),
+                cellY: Math.floor(y / GRID_SIZE),
+                key: `${Math.floor(x / GRID_SIZE)},${Math.floor(y / GRID_SIZE)}`
+            };
         }
 
-        function startGame() {
-            level = 1;
-            score = 0;
-            gameState = 'playing';
-            gameOverScreen.classList.add('hidden');
-            levelCompleteScreen.classList.add('hidden');
-            startBtn.style.display = 'none';
-            updateUI();
-            startLevel();
+        function updateProgress() {
+            checkWinCondition();
         }
 
-        function startLevel() {
-            clearBoard();
-            timeLeft = TIME_PER_LEVEL;
-            setTargetShape(level - 1);
-            updateUI();
-
-            if (gameTimer) clearInterval(gameTimer);
-            gameTimer = setInterval(updateTimer, 100);
-        }
-
-        function updateTimer() {
-            timeLeft -= 0.1;
-            const percent = (timeLeft / TIME_PER_LEVEL) * 100;
-            timerFill.style.width = percent + '%';
-
-            if (percent > 50) {
-                timerFill.className = 'timer-fill';
-            } else if (percent > 25) {
-                timerFill.className = 'timer-fill warning';
-            } else {
-                timerFill.className = 'timer-fill danger';
-            }
-
-            if (timeLeft <= 0) {
-                gameOver();
-            }
-        }
-
-        function levelComplete() {
-            clearInterval(gameTimer);
-            const bonus = Math.round(timeLeft * 10);
-            const levelPoints = 100 + bonus;
-            score += levelPoints;
-            gameState = 'complete';
-            levelScore.textContent = '+' + levelPoints;
-            levelCompleteScreen.classList.remove('hidden');
-            updateUI();
-        }
-
-        function nextLevel() {
-            level++;
-            levelCompleteScreen.classList.add('hidden');
-            gameState = 'playing';
-            updateUI();
-            startLevel();
-        }
-
-        function gameOver() {
-            clearInterval(gameTimer);
-            gameState = 'idle';
-            finalScore.textContent = score;
-            gameOverScreen.classList.remove('hidden');
-        }
-
-        function updateUI() {
-            levelValue.textContent = level;
-            scoreValue.textContent = score;
-        }
-
-        // ========== HAND TRACKING ==========
-        const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
-        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.6 });
-        hands.onResults(onResults);
-
-        function detectIndexPinch(lm) {
-            const dx = lm[4].x - lm[8].x, dy = lm[4].y - lm[8].y;
-            return Math.sqrt(dx * dx + dy * dy) < PINCH_THRESHOLD;
-        }
-
-        function detectMiddlePinch(lm) {
-            const dx = lm[4].x - lm[12].x, dy = lm[4].y - lm[12].y;
-            return Math.sqrt(dx * dx + dy * dy) < PINCH_THRESHOLD;
-        }
-
+        // Hand Tracking
         function onResults(results) {
             handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const lm = results.multiHandLandmarks[0];
+                drawConnectors(handCtx, lm, HAND_CONNECTIONS, { color: 'rgba(251, 191, 36, 0.5)', lineWidth: 2 });
+                drawLandmarks(handCtx, lm, { color: '#fbbf24', lineWidth: 1, radius: 2 });
 
-                drawConnectors(handCtx, lm, HAND_CONNECTIONS, { color: 'rgba(168, 85, 247, 0.3)', lineWidth: 2 });
-                drawLandmarks(handCtx, lm, { color: '#a855f7', lineWidth: 1, radius: 2 });
+                // Cursor Pos
+                handX = ((1 - lm[8].x) * window.innerWidth); // Mirror
+                handY = (lm[8].y * window.innerHeight);
 
-                handX = ((1 - lm[4].x) + (1 - lm[8].x)) / 2 * window.innerWidth;
-                handY = (lm[4].y + lm[8].y) / 2 * window.innerHeight;
                 handCursor.style.display = 'block';
                 handCursor.style.left = handX + 'px';
                 handCursor.style.top = handY + 'px';
 
-                const indexPinch = detectIndexPinch(lm);
-                const middlePinch = detectMiddlePinch(lm);
+                // Detect Pinch (Index+Thumb)
+                const dx = lm[4].x - lm[8].x;
+                const dy = lm[4].y - lm[8].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
 
-                if (indexPinch && !middlePinch) { drawFrames++; eraseFrames = 0; }
-                else if (middlePinch && !indexPinch) { eraseFrames++; drawFrames = 0; }
-                else { drawFrames = eraseFrames = 0; }
-
-                if (drawFrames >= PINCH_HOLD_FRAMES && gameState === 'playing') {
-                    currentMode = 'draw';
-                    handCursor.className = 'hand-cursor drawing';
-                    modeValue.textContent = 'DRAW';
-                    const cellX = Math.floor(handX / GRID_SIZE);
-                    const cellY = Math.floor(handY / GRID_SIZE);
-                    placeCube(cellX, cellY);
-                } else if (eraseFrames >= PINCH_HOLD_FRAMES && gameState === 'playing') {
-                    currentMode = 'erase';
-                    handCursor.className = 'hand-cursor erasing';
-                    modeValue.textContent = 'ERASE';
-                    const cellX = Math.floor(handX / GRID_SIZE);
-                    const cellY = Math.floor(handY / GRID_SIZE);
-                    removeCube(cellX, cellY);
+                if (dist < PINCH_THRESHOLD) {
+                    drawFrames++;
                 } else {
-                    currentMode = null;
-                    handCursor.className = 'hand-cursor';
-                    modeValue.textContent = '-';
+                    drawFrames = 0;
+                    handCursor.classList.remove('drawing');
+                }
+
+                if (drawFrames > PINCH_HOLD_FRAMES && isGameActive) {
+                    handCursor.classList.add('drawing');
+                    const cell = getGridCell(handX, handY);
+                    if (cell.key !== lastGridCell) {
+                        checkClick(cell.cellX, cell.cellY);
+                        lastGridCell = cell.key;
+                    }
+                } else {
+                    lastGridCell = null;
                 }
             } else {
                 handCursor.style.display = 'none';
-                modeValue.textContent = '-';
             }
         }
 
-        document.getElementById('clearBtn').addEventListener('click', () => {
-            if (gameState === 'playing') clearBoard();
+        const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.5 });
+        hands.onResults(onResults);
+
+        const camera = new Camera(video, {
+            onFrame: async () => { await hands.send({ image: video }); },
+            width: 1280, height: 720
         });
+        camera.start();
 
-        async function startCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 1280, height: 720 } });
-                video.srcObject = stream;
-                video.onloadedmetadata = () => {
-                    video.play();
-                    const camera = new Camera(video, { onFrame: async () => await hands.send({ image: video }), width: 1280, height: 720 });
-                    camera.start();
-                    setTimeout(() => { loadingScreen.classList.add('hidden'); drawGrid(); setTargetShape(0); }, 1200);
-                };
-            } catch (e) { loadingScreen.querySelector('.loading-text').textContent = 'Camera denied'; }
+        // Draw initial grid
+        function drawGrid() {
+            gridCtx.strokeStyle = 'rgba(255,255,255,0.05)';
+            for (let x = 0; x < gridCanvas.width; x += GRID_SIZE) {
+                gridCtx.beginPath(); gridCtx.moveTo(x, 0); gridCtx.lineTo(x, gridCanvas.height); gridCtx.stroke();
+            }
+            for (let y = 0; y < gridCanvas.height; y += GRID_SIZE) {
+                gridCtx.beginPath(); gridCtx.moveTo(0, y); gridCtx.lineTo(gridCanvas.width, y); gridCtx.stroke();
+            }
         }
+        drawGrid();
 
-        startCamera();
     </script>
 </body>
 

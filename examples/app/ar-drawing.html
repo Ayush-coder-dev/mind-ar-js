@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>AR Drawing Canvas</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #111;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #video {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 1;
+        }
+
+        #drawingCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 5;
+            touch-action: none;
+        }
+
+        /* Cursor */
+        .cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border: 2px solid white;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            transition: width 0.1s, height 0.1s, background-color 0.1s;
+        }
+
+        .cursor.drawing {
+            background-color: currentColor;
+            /* Use current text color set by JS */
+            width: 10px;
+            height: 10px;
+            border-color: rgba(255, 255, 255, 0.8);
+        }
+
+        /* UI Toolbar */
+        .toolbar {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 20, 20, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px 25px;
+            border-radius: 40px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            z-index: 200;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .color-opt {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .color-opt:hover {
+            transform: scale(1.1);
+        }
+
+        .color-opt.active {
+            transform: scale(1.2);
+            border-color: white;
+            box-shadow: 0 0 15px currentColor;
+        }
+
+        .divider {
+            width: 1px;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .tool-btn {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .tool-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .tool-btn:active {
+            transform: scale(0.95);
+        }
+
+        .tool-btn.active {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: white;
+            box-shadow: 0 0 10px white;
+        }
+
+        .size-slider {
+            width: 80px;
+            accent-color: white;
+        }
+
+        .top-ui {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 200;
+        }
+
+        .back-btn {
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: 600;
+            backdrop-filter: blur(5px);
+        }
+
+        .status {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.7);
+            background: rgba(0, 0, 0, 0.4);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 150;
+        }
+    </style>
+</head>
+
+<body>
+    <video id="video" playsinline></video>
+    <canvas id="drawingCanvas"></canvas>
+
+    <div id="cursor" class="cursor"></div>
+    <div class="status" id="statusText">Show Hand to Draw</div>
+
+    <div class="top-ui">
+        <a href="index.html" class="back-btn">← Exit</a>
+    </div>
+
+    <div class="toolbar">
+        <div class="color-opt active" style="background:#ef4444; color:#ef4444" onclick="setColor('#ef4444', this)">
+        </div>
+        <div class="color-opt" style="background:#f59e0b; color:#f59e0b" onclick="setColor('#f59e0b', this)"></div>
+        <div class="color-opt" style="background:#22c55e; color:#22c55e" onclick="setColor('#22c55e', this)"></div>
+        <div class="color-opt" style="background:#3b82f6; color:#3b82f6" onclick="setColor('#3b82f6', this)"></div>
+        <div class="color-opt" style="background:#a855f7; color:#a855f7" onclick="setColor('#a855f7', this)"></div>
+        <div class="color-opt" style="background:#ffffff; color:#ffffff" onclick="setColor('#ffffff', this)"></div>
+
+        <div class="divider"></div>
+
+        <input type="range" min="2" max="20" value="5" class="size-slider" oninput="setLineWidth(this.value)"
+            title="Brush Size">
+
+        <div class="divider"></div>
+
+        <button class="tool-btn" id="eraserBtn" onclick="setEraser(this)" title="Eraser">🧹</button>
+        <button class="tool-btn" onclick="clearCanvas()" title="Clear">🗑️</button>
+        <button class="tool-btn" onclick="saveArt()" title="Save">💾</button>
+    </div>
+
+    <script>
+        // Setup
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        const cursor = document.getElementById('cursor');
+        const statusText = document.getElementById('statusText');
+
+        // Resize
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // State
+        let isDrawing = false;
+        let lastX = 0, lastY = 0;
+        let currentColor = '#ef4444';
+        let currentWidth = 5;
+
+        // Smoothing
+        let smoothX = 0, smoothY = 0;
+        const SMOOTH_FACTOR = 0.4; // Lower = smoother but more lag
+
+        // Config
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Functions
+        function setColor(hex, el) {
+            currentColor = hex;
+            ctx.globalCompositeOperation = 'source-over'; // Default draw mode
+            document.querySelectorAll('.color-opt').forEach(c => c.classList.remove('active'));
+            document.getElementById('eraserBtn').classList.remove('active'); // Deactivate eraser
+            el.classList.add('active');
+            cursor.style.color = hex;
+        }
+
+        function setEraser(el) {
+            ctx.globalCompositeOperation = 'destination-out';
+            document.querySelectorAll('.color-opt').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            cursor.style.color = '#ffffff';
+            statusText.textContent = "Eraser Active";
+        }
+
+        function setLineWidth(val) {
+            currentWidth = parseInt(val);
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function saveArt() {
+            const link = document.createElement('a');
+            link.download = 'ar-masterpiece.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        // Hand Tracking
+        function onResults(results) {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const lm = results.multiHandLandmarks[0];
+
+                // Index Tip
+                const rawX = (1 - lm[8].x) * window.innerWidth;
+                const rawY = lm[8].y * window.innerHeight;
+
+                // Smooth coordinates
+                if (smoothX === 0) { smoothX = rawX; smoothY = rawY; }
+                smoothX = smoothX + (rawX - smoothX) * SMOOTH_FACTOR;
+                smoothY = smoothY + (rawY - smoothY) * SMOOTH_FACTOR;
+
+                // Move cursor
+                cursor.style.left = smoothX + 'px';
+                cursor.style.top = smoothY + 'px';
+                cursor.style.display = 'block';
+
+                // Detect Pinch (Thumb+Index)
+                const dx = lm[4].x - lm[8].x;
+                const dy = lm[4].y - lm[8].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                // Check pinch state
+                const isPinching = dist < 0.05;
+
+                if (isPinching) {
+                    cursor.classList.add('drawing');
+                    statusText.textContent = "Drawing...";
+                    statusText.style.color = currentColor;
+
+                    ctx.lineWidth = currentWidth;
+
+                    if (ctx.globalCompositeOperation === 'source-over') {
+                        ctx.strokeStyle = currentColor;
+                        // Neon Glow
+                        ctx.shadowBlur = 10;
+                        ctx.shadowColor = currentColor;
+                    } else {
+                        // Eraser
+                        ctx.strokeStyle = 'rgba(0,0,0,1)';
+                        ctx.shadowBlur = 0;
+                    }
+
+                    if (!isDrawing) {
+                        ctx.beginPath();
+                        ctx.moveTo(smoothX, smoothY);
+                        isDrawing = true;
+                    } else {
+                        ctx.lineTo(smoothX, smoothY);
+                        ctx.stroke();
+
+                        // Continuous beginPath for smoother curves if needed? 
+                        // Actually standard lineTo is fine, but lets re-stroke to be safe
+                        // ctx.beginPath(); ctx.moveTo(smoothX, smoothY); // Naive approach
+                    }
+
+                    lastX = smoothX;
+                    lastY = smoothY;
+
+                } else {
+                    cursor.classList.remove('drawing');
+                    statusText.textContent = "Pinch to Draw";
+                    statusText.style.color = "rgba(255,255,255,0.7)";
+                    isDrawing = false;
+                    ctx.beginPath(); // Reset path
+                }
+            } else {
+                cursor.style.display = 'none';
+                statusText.textContent = "Show Hand to Draw";
+                isDrawing = false;
+            }
+        }
+
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+        hands.onResults(onResults);
+
+        const camera = new Camera(video, {
+            onFrame: async () => { await hands.send({ image: video }); },
+            width: 1280, height: 720
+        });
+        camera.start();
+
+        // Initial color setup
+        cursor.style.color = currentColor;
+
+    </script>
+</body>
+
+</html>

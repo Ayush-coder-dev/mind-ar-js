@@ -149,7 +149,7 @@
             font-size: 11px;
             backdrop-filter: blur(10px);
             text-align: left;
-            max-width: 400px;
+            max-width: 480px;
             line-height: 1.6;
         }
 
@@ -396,7 +396,7 @@
             backdrop-filter: blur(10px);
         }
 
-        
+
         .color-picker {
             position: fixed;
             top: 50%;
@@ -411,6 +411,7 @@
             border-radius: 20px;
             backdrop-filter: blur(10px);
         }
+
         .color-swatch {
             width: 24px;
             height: 24px;
@@ -418,11 +419,13 @@
             border: 2px solid transparent;
             transition: all 0.15s ease;
         }
+
         .color-swatch.active {
             border-color: white;
             transform: scale(1.2);
             box-shadow: 0 0 15px currentColor;
         }
+
         .hand-cursor.picking {
             background: rgba(236, 72, 153, 0.6);
             width: 36px;
@@ -430,9 +433,11 @@
             box-shadow: 0 0 25px rgba(236, 72, 153, 0.9);
             border-color: #ec4899;
         }
+
         .ui-value.color {
             color: #ec4899;
         }
+
         .instructions .pink {
             color: #ec4899;
             font-weight: 600;
@@ -464,7 +469,8 @@
 
     <div class="instructions" id="instructions">
         <span class="purple">Thumb+Index</span> → Draw | <span class="red">Thumb+Middle</span> → Erase cubes<br>
-        <span class="green">Fist</span> → Save & rotate | <span class="orange">Thumb+Ring</span> → Delete | <span class="pink">Thumb+Pinky</span> → Color
+        <span class="green">Fist</span> → Save & rotate | <span class="orange">Thumb+Ring</span> → Delete | <span
+            class="pink">Thumb+Pinky</span> → Color | <span class="purple">2 Hands Pinch</span> → Scale
     </div>
 
     <div class="hand-cursor" id="handCursor" style="display: none;"></div>
@@ -529,6 +535,9 @@
 
         let savedObjects = [];
         let isFistActive = false;
+        let isScalingActive = false;
+        let initialPinchDistance = 0;
+        let initialObjectScale = 1;
         let fistStartPitch = 0, fistStartYaw = 0, fistStartRoll = 0;
         let currentRotX = 0, currentRotY = 0, currentRotZ = 0;
         let selectedObjectIndex = -1;
@@ -604,7 +613,7 @@
             // Update CSS custom properties for grid-cube colors
             const style = document.documentElement.style;
             style.setProperty('--cube-main', color);
-            
+
             // Apply to all existing grid cubes
             document.querySelectorAll('.grid-cube .front').forEach(el => {
                 el.style.background = 'linear-gradient(135deg, ' + color + ', ' + adjustBrightness(color, -30) + ')';
@@ -655,7 +664,7 @@
             });
 
             savedObjectEl.appendChild(container);
-            savedObjects.push({ element: container, rotX: 0, rotY: 0, rotZ: 0, centerX, centerY });
+            savedObjects.push({ element: container, rotX: 0, rotY: 0, rotZ: 0, scale: 1, centerX, centerY });
             objectCount.textContent = savedObjects.length;
 
             cubesLayer.innerHTML = '';
@@ -698,7 +707,7 @@
 
         // ========== HAND TRACKING ==========
         const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
-        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.6 });
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.6 });
         hands.onResults(onResults);
 
         function detectIndexPinch(lm) {
@@ -713,6 +722,11 @@
 
         function detectRingPinch(lm) {
             const dx = lm[4].x - lm[16].x, dy = lm[4].y - lm[16].y;
+            return Math.sqrt(dx * dx + dy * dy) < PINCH_THRESHOLD;
+        }
+
+        function detectPinkyPinch(lm) {
+            const dx = lm[4].x - lm[20].x, dy = lm[4].y - lm[20].y;
             return Math.sqrt(dx * dx + dy * dy) < PINCH_THRESHOLD;
         }
 
@@ -753,20 +767,66 @@
                 handCursor.style.left = handX + 'px';
                 handCursor.style.top = handY + 'px';
 
+                // Check for 2-hand scaling gesture (Index Pinch on both hands)
+                if (results.multiHandLandmarks.length === 2) {
+                    const lm1 = results.multiHandLandmarks[0];
+                    const lm2 = results.multiHandLandmarks[1];
+
+                    // Draw second hand
+                    drawConnectors(handCtx, lm2, HAND_CONNECTIONS, { color: 'rgba(168, 85, 247, 0.3)', lineWidth: 2 });
+                    drawLandmarks(handCtx, lm2, { color: '#a855f7', lineWidth: 1, radius: 2 });
+
+                    if (detectIndexPinch(lm1) && detectIndexPinch(lm2)) {
+                        const h1 = { x: lm1[8].x, y: lm1[8].y };
+                        const h2 = { x: lm2[8].x, y: lm2[8].y };
+                        const dist = Math.sqrt(Math.pow(h1.x - h2.x, 2) + Math.pow(h1.y - h2.y, 2));
+
+                        if (!isScalingActive) {
+                            if (selectedObjectIndex >= 0 && savedObjects[selectedObjectIndex]) {
+                                initialPinchDistance = dist;
+                                initialObjectScale = savedObjects[selectedObjectIndex].scale || 1;
+                                isScalingActive = true;
+                                modeValue.textContent = 'SCALING'; modeValue.className = 'ui-value draw';
+                            }
+                        } else {
+                            if (selectedObjectIndex >= 0 && savedObjects[selectedObjectIndex]) {
+                                const obj = savedObjects[selectedObjectIndex];
+                                const scaleFactor = dist / initialPinchDistance;
+                                obj.scale = Math.max(0.2, Math.min(5.0, initialObjectScale * scaleFactor));
+
+                                // Update transform with new scale
+                                obj.element.style.transform = `rotateX(${obj.rotX}deg) rotateY(${obj.rotY}deg) rotateZ(${obj.rotZ}deg) scale(${obj.scale})`;
+                            }
+                        }
+
+                        // Prevent other gestures when scaling
+                        handCursor.style.display = 'none';
+                        return;
+                    } else {
+                        isScalingActive = false;
+                    }
+                } else {
+                    isScalingActive = false;
+                }
+
+                // Existing single hand logic starts here
                 const indexPinch = detectIndexPinch(lm);
                 const middlePinch = detectMiddlePinch(lm);
                 const ringPinch = detectRingPinch(lm);
+                const pinkyPinch = detectPinkyPinch(lm);
                 const fist = detectFist(lm);
 
-                if (indexPinch && !middlePinch && !ringPinch && !fist) { drawFrames++; eraseFrames = fistFrames = deleteFrames = 0; }
-                else if (middlePinch && !indexPinch && !ringPinch && !fist) { eraseFrames++; drawFrames = fistFrames = deleteFrames = 0; }
-                else if (ringPinch && !indexPinch && !middlePinch && !fist) { deleteFrames++; drawFrames = eraseFrames = fistFrames = 0; }
-                else if (fist) { fistFrames++; drawFrames = eraseFrames = deleteFrames = 0; }
-                else { drawFrames = eraseFrames = fistFrames = deleteFrames = 0; }
+                if (indexPinch && !middlePinch && !ringPinch && !pinkyPinch && !fist) { drawFrames++; eraseFrames = fistFrames = deleteFrames = pinkyFrames = 0; }
+                else if (middlePinch && !indexPinch && !ringPinch && !pinkyPinch && !fist) { eraseFrames++; drawFrames = fistFrames = deleteFrames = pinkyFrames = 0; }
+                else if (ringPinch && !indexPinch && !middlePinch && !pinkyPinch && !fist) { deleteFrames++; drawFrames = eraseFrames = fistFrames = pinkyFrames = 0; }
+                else if (pinkyPinch && !indexPinch && !middlePinch && !ringPinch && !fist) { pinkyFrames++; drawFrames = eraseFrames = fistFrames = deleteFrames = 0; }
+                else if (fist) { fistFrames++; drawFrames = eraseFrames = deleteFrames = pinkyFrames = 0; }
+                else { drawFrames = eraseFrames = fistFrames = deleteFrames = pinkyFrames = 0; canChangeColor = true; }
 
                 const confirmedDraw = drawFrames >= PINCH_HOLD_FRAMES;
                 const confirmedErase = eraseFrames >= PINCH_HOLD_FRAMES;
                 const confirmedDelete = deleteFrames >= PINCH_HOLD_FRAMES;
+                const confirmedPinky = pinkyFrames >= PINCH_HOLD_FRAMES;
                 const confirmedFist = fistFrames >= FIST_HOLD_FRAMES;
 
                 if (confirmedDraw) {
@@ -778,6 +838,17 @@
                     currentMode = 'erase';
                     handCursor.className = 'hand-cursor erasing';
                     modeValue.textContent = 'ERASE'; modeValue.className = 'ui-value erase';
+                    isFistActive = false;
+                } else if (confirmedPinky) {
+                    if (canChangeColor) {
+                        colorIndex = (colorIndex + 1) % colorPalette.length;
+                        updateCubeColor(colorPalette[colorIndex]);
+                        updateColorPicker(colorIndex);
+                        canChangeColor = false;
+                    }
+                    currentMode = 'color';
+                    handCursor.className = 'hand-cursor picking';
+                    modeValue.textContent = 'COLOR'; modeValue.className = 'ui-value color';
                     isFistActive = false;
                 } else if (confirmedDelete) {
                     if (currentMode !== 'delete') {
@@ -810,7 +881,8 @@
                         obj.rotY = currentRotY + deltaY;
                         obj.rotZ = currentRotZ + deltaZ;
 
-                        obj.element.style.transform = `rotateX(${obj.rotX}deg) rotateY(${obj.rotY}deg) rotateZ(${obj.rotZ}deg)`;
+                        const s = obj.scale || 1;
+                        obj.element.style.transform = `rotateX(${obj.rotX}deg) rotateY(${obj.rotY}deg) rotateZ(${obj.rotZ}deg) scale(${s})`;
 
                         rotXEl.textContent = Math.round(obj.rotX) + '°';
                         rotYEl.textContent = Math.round(obj.rotY) + '°';
